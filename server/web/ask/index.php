@@ -64,6 +64,7 @@ if($rst = $mysqli->query($sql))
 {
     if($humanReadable)
     {
+        $output = "<pre>";
         while($row = $rst->fetch_row())
             $output .= implode(FIELD_SEPARATOR, $row) . ROW_SEPARATOR;
     }
