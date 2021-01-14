@@ -2,11 +2,13 @@
 
 require_once "../setup.php";
 
+date_default_timezone_set(TIMEZONE);
+
 const CACHE_ON = false;
 const FIELD_SEPARATOR = "\t";
 const ROW_SEPARATOR = "\n";
 
-$code = isset($_REQUEST["c"]) ? $_REQUEST["c"] : ""; // "7820162-1";
+$code = isset($_REQUEST["c"]) ? $_REQUEST["c"] : ""; // "for example 7820162-1";
 if(!$code)
     exit();
 
@@ -70,6 +72,7 @@ if($rst = $mysqli->query($sql))
     }
     else
     {
+        //Format description: https://github.com/tihhanovski/tabloo/wiki/Server#andmete-v%C3%A4ljastamine-seadmetesse
         $ldi = 0;
         $lineData = array();
         $lineNames = array();
@@ -89,7 +92,13 @@ if($rst = $mysqli->query($sql))
             $stopTimes[] = $row->time . chr((int)$row->ldi);
         }
         $stc = count($stopTimes);
-        $output = chr(count($lineNames)) . implode($lineNames, "") . chr(floor($stc / 256)) . chr($stc % 256) . implode($stopTimes, "");
+
+        $output =
+            chr((int)date("H")) . chr((int)date("i")) . chr((int)date("s")) .   //current time in seconds - 3 bytes
+            chr(count($lineNames)) .                                            //count of lines
+            implode($lineNames, "") .                                           //line names
+            chr(floor($stc / 256)) . chr($stc % 256) .                          //count of times
+            implode($stopTimes, "");                                            //times
     }
     $rst->close();
 }
