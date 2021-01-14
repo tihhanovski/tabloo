@@ -1,11 +1,10 @@
-#define DATA_LOADING_INTERVAL 60000          //in milliseconds
+#define DATA_LOADING_INTERVAL 60000         //in milliseconds
 #define REFRESH_BUS_LIST_INTERVAL 60000     //in milliseconds
 #define SCROLL_SPEED 10                     //letters per second
 #define DEFAULT_BUS_LIST_COUNT 3
 
 unsigned long int timeToLoadData;
 unsigned long int timeToRefreshBusList;
-unsigned int busListCount = 0;
 
 char* stringToScroll = nullptr;
 unsigned long int lineNoToScroll = 0;
@@ -23,9 +22,14 @@ public:
 class TimeData
 {
 public:
-    char hours;
-    char minutes;
+    unsigned char hours;
+    unsigned char minutes;
     LineData* line;
+
+    unsigned int secs()
+    {
+        return hours * 3600 + minutes * 60;
+    }
 
     unsigned int getScrollHeaderLength()
     {
@@ -38,10 +42,14 @@ public:
     }
 };
 
+unsigned int loadedSecs;
+unsigned int deltaSecs;
 unsigned int timesCount;
 LineData* lines = nullptr;
 TimeData* times = nullptr;
 char** busList = nullptr;
+char** timesList = nullptr;
+unsigned int busListCount = 0;
 
 
 char* downloadTimetable()
@@ -60,13 +68,15 @@ void loadTimes()
     if(times != nullptr)
         delete[] times;
 
-    unsigned char lineCount = *data;
+    loadedSecs = data[0] * 3600 + data[1] * 60 + data[2];
+    deltaSecs = millis() / 1000;
 
-    //cout << "lines: " << (int)lineCount << endl;
+    char* p = data + 3;
 
+    unsigned char lineCount = *p;
     lines = new LineData[lineCount];
-    char* p = data + 1;
-    //char* p1;
+    p++;
+
     for(unsigned int i = 0; i < lineCount; i++)
     {
         lines[i].shortName = p;
@@ -81,8 +91,6 @@ void loadTimes()
     unsigned char timeCountLo = *p++;
     timesCount = 256 * timeCountHi + timeCountLo;
 
-    //cout << "times:" <<  (int)timeCountHi << " * 256 + " << (int)timeCountLo << " = " << timesCount << endl;
-
     times = new TimeData[timesCount];
     for(size_t i = 0; i < timesCount; i++)
     {
@@ -90,16 +98,29 @@ void loadTimes()
         times[i].minutes = *p++;
         times[i].line = lines + *p++;
     }
+}
 
+unsigned int startTime = 0;
+char timeBuffer[6];
 
-    /*
-    for(size_t i = 0; i < timesCount; i++)
-        cout << (int)times[i].hours << ":" << (int)times[i].minutes << " "
-        << times[i].line->shortName << " " << times[i].line->longName << " -> " << times[i].line->headSign
-        << endl;
-    */
+unsigned int currentTimeSeconds()
+{
+    return millis() / 1000 - deltaSecs + loadedSecs;
+}
 
-    cout << "Loaded data " << endl;
+void encodeTime(char* buffer, unsigned char hours, unsigned char minutes)
+{
+    sprintf(buffer, "%02d:%02d", hours, minutes);
+}
+
+char* getCurrentTimeStr()
+{
+    unsigned int msc = currentTimeSeconds();
+    int msc2 = msc / 60;
+    encodeTime(timeBuffer, msc2 / 60, msc2 % 60);
+    if(msc % 2)
+        timeBuffer[2] = ' ';
+    return timeBuffer;
 }
 
 void scroll()
@@ -114,7 +135,7 @@ void scroll()
     if(stringToScroll == nullptr)
 	{
 		stringToScroll = busList[lineNoToScroll];
-		cout << endl << "*** new stringToScroll: '" << stringToScroll << "'" << endl;
+		//cout << endl << "*** new stringToScroll: '" << stringToScroll << "'" << endl;
 	}
 
     if(scrollStarted == 0)
@@ -132,8 +153,13 @@ void scroll()
 			scrollStarted = 0;
 			return;
 		}
-		lcd->setCursor(0, 0);
+        lcd->setCursor(0, 0);
+        lcd->print(timesList[lineNoToScroll]);
+		lcd->setCursor(6, 0);
 		lcd->print(stringToScroll + scrollPos);
+
+        lcd->setCursor(0, 1);
+        lcd->print(getCurrentTimeStr());
 	}
 
 }
@@ -153,26 +179,36 @@ void makeBusList()
     if(busList != nullptr)
     {
         for(unsigned int i = 0; i < busListCount; i++)
+        {
             delete busList[i];
+            delete timesList[i];
+        }
         delete[] busList;
+        delete[] timesList;
     }
+
+    unsigned int cs = currentTimeSeconds();
 
     busList = new char*[DEFAULT_BUS_LIST_COUNT];
+    timesList = new char*[DEFAULT_BUS_LIST_COUNT];
     unsigned int bc = 0;
     for(unsigned int i = 0; i < timesCount; i++)
-    {
-        unsigned int ll = times[i].getScrollHeaderLength() + times[i].getScrollBodyLength() + 2;
-        busList[bc] = new char[ll];
-        for(unsigned int j = 0; j < ll; j++)
-            busList[bc][j] = ' ';
-        memcpy(busList[bc], times[i].line->shortName, strlen(times[i].line->shortName));
-        memcpy(busList[bc] + strlen(times[i].line->shortName) + 2, times[i].line->longName, strlen(times[i].line->longName));
-        busList[bc][ll - 1] = '\0';
-        bc++;
+        if(times[i].secs() > cs)
+        {
+            timesList[bc] = new char[6];
+            encodeTime(timesList[bc], times[i].hours, times[i].minutes);
+            unsigned int ll = times[i].getScrollHeaderLength() + times[i].getScrollBodyLength() + 2;
+            busList[bc] = new char[ll];
+            for(unsigned int j = 0; j < ll; j++)
+                busList[bc][j] = ' ';
+            memcpy(busList[bc], times[i].line->shortName, strlen(times[i].line->shortName));
+            memcpy(busList[bc] + strlen(times[i].line->shortName) + 2, times[i].line->longName, strlen(times[i].line->longName));
+            busList[bc][ll - 1] = '\0';
+            bc++;
 
-        if(bc > DEFAULT_BUS_LIST_COUNT)
-            break;
-    }
+            if(bc > DEFAULT_BUS_LIST_COUNT)
+                break;
+        }
     busListCount = DEFAULT_BUS_LIST_COUNT;
 
     for(unsigned int i = 0; i < busListCount; i++)
