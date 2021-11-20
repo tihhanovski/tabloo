@@ -1,6 +1,7 @@
 //arduino stubs
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <fstream>
 #include <iomanip>
 #include <chrono>
@@ -13,7 +14,7 @@
 #include <curl/curl.h>
 
 #include "sys/types.h"
-#include "sys/sysinfo.h"
+//#include "sys/sysinfo.h"
 #include <curl/curl.h>
 
 #define LCD_WIDTH 16
@@ -36,14 +37,14 @@ unsigned long millis()
 class LCD
 {
 public:
-	size_t cnt = 0;
+	size_t cnt;
 
 	string* lines;
 	size_t width;
 	size_t height;
 
-	size_t posX = 0;
-	size_t posY = 0;
+	size_t posX;
+	size_t posY;
 
 	void setCursor(size_t x, size_t y)
 	{
@@ -80,6 +81,9 @@ public:
 
 	LCD(size_t w = LCD_WIDTH, size_t h = LCD_HEIGHT)
 	{
+		posY = 0;
+		posX = 0;
+		cnt = 0;
 		width = w;
 		height = h;
 		lines = new string[h];
