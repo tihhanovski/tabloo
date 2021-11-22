@@ -1,5 +1,9 @@
 #include <Arduino.h>
 
+#define EEPROM_SIZE 100     // Setup EEPROM storage size
+#include "Storage.h"
+Storage storage(10);      // TODO set proper max keys count
+
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 
 #include "Connection.h"
@@ -10,8 +14,7 @@
 #include "Util.h"
 #include "BLESetup.h"
 
-#define EEPROM_SIZE 200     // Setup EEPROM storage size
-#include "Storage.h"
+#define MAX_SERIAL_COMMAND_SIZE 100
 
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
 #define PANEL_RES_Y 32     // Number of pixels tall of each INDIVIDUAL panel module.
@@ -28,7 +31,6 @@ size_t dataSize;
 
 Marquees scrolls;
 
-Storage storage(10);      // TODO set proper max keys count
 
 struct LineData {
   const char* no;
@@ -140,6 +142,7 @@ void loadData() {
 
 void start()
 {
+  Serial.println("Starting");
   // Show beautiful splash screen with taltech logo
   display->setTextWrap(false); // Don't wrap at end of line - will do ourselves
   display->setTextColor(display->color444(15,0,0));
@@ -230,9 +233,87 @@ void clock_show()
   }
 }
 
+char serialCommandBuffer[MAX_SERIAL_COMMAND_SIZE] = {0};
+char* serialCommandCurrentByte = serialCommandBuffer;
+
+const char* CMD_SETUP_SAVE = "setup save";
+//const size_t CMD_SETUP_SAVE_LEN = strlen(CMD_SETUP_SAVE);
+const char* CMD_SETUP_SET = "setup set ";
+const size_t CMD_SETUP_SET_LEN = strlen(CMD_SETUP_SET);
+const char* CMD_SETUP_LIST = "setup list";
+//const size_t CMD_SETUP_LIST_LEN = strlen(CMD_SETUP_LIST);
+
+void processCommand(char* command) {
+  char* arg1;
+  char* arg2;
+
+  Serial.print("Received command '");
+  Serial.print(command);
+  Serial.println("'");
+
+  if(!strcmp(CMD_SETUP_LIST, command)) {
+    if(!storage.isLoaded())
+      storage.load();
+    Serial.println("\tSetup:");
+    for(keypos_t i = 0; i < storage.getKeysUsed(); i++)
+    {
+      Serial.print("\t");
+      Serial.print(storage.keys[i]);
+      Serial.print(" = '");
+      Serial.print(storage.values[i]);
+      Serial.println("'");
+    }
+  }
+
+  if(!strcmp(CMD_SETUP_SAVE, command)) {
+    Serial.print("\tSaving setup");
+    storage.save();
+    return start();
+  }
+
+  if(!memcmp(CMD_SETUP_SET, command, CMD_SETUP_SET_LEN)) {
+    Serial.print("\tSetup set '");
+    arg1 = command + CMD_SETUP_SET_LEN;
+    arg2 = arg1;
+    while(*arg2 != 0) {
+      if(*arg2 == '=') {
+        *arg2 = 0;
+        arg2++;
+        break;
+      }
+      arg2++;
+    }
+    Serial.print(arg1);
+    Serial.print("' to '");
+    Serial.print(arg2);
+    Serial.print("': ");
+    if(strlen(arg1))
+      Serial.println(storage.set(arg1, arg2) ? "OK" : "Failed");
+    else
+      Serial.println("Arguments not given");
+  }
+}
+
+void processSerialCommand() {
+  *serialCommandCurrentByte = 0;
+  processCommand(serialCommandBuffer);
+}
+
 void loop() {
   scrolls.loop();
   clock_show();
   ble_loop();
+
+  while(Serial.available())
+  {
+    uint8_t incomingByte = Serial.read();
+    if(incomingByte == 10) {
+      processSerialCommand();
+      serialCommandCurrentByte = serialCommandBuffer;
+    }
+    if((incomingByte > 31) && (serialCommandCurrentByte - serialCommandBuffer < MAX_SERIAL_COMMAND_SIZE))
+      *(serialCommandCurrentByte++) = incomingByte;
+  }
+
   delay(50);
 }
