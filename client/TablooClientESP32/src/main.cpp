@@ -1,8 +1,10 @@
 #include <Arduino.h>
 
+#include "SPIFFS.h"
+
 #define EEPROM_SIZE 100     // Setup EEPROM storage size
-#include "Storage.h"
-Storage storage(10);      // TODO set proper max keys count
+#include "Settings.h"
+Settings settings(10);      // TODO set proper max keys count
 
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 
@@ -44,7 +46,10 @@ void setTime(uint8_t h, uint8_t m, uint8_t s) {
   timeDelta = 1000 * (h * 3600 + m * 60 + s) - millis();
 }
 
-const char* STORAGE_BUSSTOP_ID = "si";
+const char* SETUP_BUSSTOP_ID = "si";
+const char* SETUP_WIFI_SSID = "ws";
+const char* SETUP_WIFI_PASSWORD = "wp";
+//const char* S
 
 void setDemoData() {
     scrolls.add(
@@ -102,7 +107,7 @@ void displayError(const char* msg)
 
 void loadData() {
 
-  char* stopId = storage.get(STORAGE_BUSSTOP_ID);
+  char* stopId = settings.get(SETUP_BUSSTOP_ID);
   if(stopId == nullptr)
   {
     setTime(0, 0, 0);
@@ -157,9 +162,19 @@ void start()
   display->fillRect(0, 0, display->width(), display->height(), black);
 }
 
+bool startSuccessfull;
+
 void setup() {
 
+  startSuccessfull = false;
+
   Serial.begin(115200);
+
+  // Start internal filesystem
+  // Settings (and more) is stored here
+  if(!SPIFFS.begin(true)){
+    Serial.println("SPIFFS Mount Failed");
+  }
 
   outputMemoryData();
 
@@ -191,9 +206,18 @@ void setup() {
   display->setCursor(0, 0);
   display->print("Connecting...");
 
-  startConnection();  // Start Wifi connection
+  const char* wifiSSID = settings.get(SETUP_WIFI_SSID);
+  if(wifiSSID == nullptr)
+  {
+    Serial.println("No Wifi SSID found in settings.");
+    return;
+  }
 
+  // Start Wifi connection
+  startConnection(wifiSSID, settings.get(SETUP_WIFI_PASSWORD));  
   start();
+
+  startSuccessfull = true;
   //display->fillRect(0, 0, display->width(), display->height(), black);
 
 }
@@ -252,22 +276,22 @@ void processCommand(char* command) {
   Serial.println("'");
 
   if(!strcmp(CMD_SETUP_LIST, command)) {
-    if(!storage.isLoaded())
-      storage.load();
+    if(!settings.isLoaded())
+      settings.load();
     Serial.println("\tSetup:");
-    for(keypos_t i = 0; i < storage.getKeysUsed(); i++)
+    for(keypos_t i = 0; i < settings.getKeysUsed(); i++)
     {
       Serial.print("\t");
-      Serial.print(storage.keys[i]);
+      Serial.print(settings.keys[i]);
       Serial.print(" = '");
-      Serial.print(storage.values[i]);
+      Serial.print(settings.values[i]);
       Serial.println("'");
     }
   }
 
   if(!strcmp(CMD_SETUP_SAVE, command)) {
     Serial.print("\tSaving setup");
-    storage.save();
+    settings.save();
     return start();
   }
 
@@ -288,7 +312,7 @@ void processCommand(char* command) {
     Serial.print(arg2);
     Serial.print("': ");
     if(strlen(arg1))
-      Serial.println(storage.set(arg1, arg2) ? "OK" : "Failed");
+      Serial.println(settings.set(arg1, arg2) ? "OK" : "Failed");
     else
       Serial.println("Arguments not given");
   }
@@ -300,9 +324,13 @@ void processSerialCommand() {
 }
 
 void loop() {
-  scrolls.loop();
-  clock_show();
-  ble_loop();
+
+  if(startSuccessfull)
+  {
+    scrolls.loop();
+    clock_show();
+    ble_loop();
+  }
 
   while(Serial.available())
   {

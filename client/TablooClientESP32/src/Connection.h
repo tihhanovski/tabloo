@@ -8,19 +8,25 @@
 //#define WIFI_PASS "Puie5tee"
 //#define WIFI_SSID "k10-firstfloor"      // your network SSID (name)
 //#define WIFI_PASS "aPustiKaV1nternet"   // your network key
-#define WIFI_SSID "Telia-86EB42"        // your network SSID (name)
-#define WIFI_PASS "EMPBNVJUMMHXRR"      // your network key
+//#define WIFI_SSID "Telia-86EB42"        // your network SSID (name)
+//#define WIFI_PASS "EMPBNVJUMMHXRR"      // your network key
+
 
 #define HTTP_SERVER "https://dev.intellisoft.ee/tabloo/ask/?c="
 
 //HTTP: See https://randomnerdtutorials.com/esp32-http-get-post-arduino/
 
-void startConnection()
+void startConnection(const char* ssid, const char* password)
 {
+    if(ssid == nullptr)
+    {
+        Serial.print("Wifi SSID not given");
+        return;
+    }
     Serial.print("WiFi: Connecting to ");
-    Serial.print(WIFI_SSID);
+    Serial.print(ssid);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    WiFi.begin(ssid, password);
 
     while (WiFi.status() != WL_CONNECTED) {
         Serial.print(".");
@@ -33,6 +39,12 @@ void startConnection()
 }
 
 bool fetchData(const char* stopId, char*& data, size_t& dataSize){
+
+    if(WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println("No Wifi connection. Can not fetch");
+        return false;
+    }
 
     size_t sl = strlen(HTTP_SERVER);
     char* url = new char[sl + strlen(stopId) + 1];
