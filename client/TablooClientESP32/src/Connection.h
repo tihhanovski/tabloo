@@ -1,3 +1,9 @@
+/**
+ * Connection code
+ * This is used only for testing of prototype: wifi connection, data fetch from HTTP
+ * In actual system other medium (maybe LoRa) and protocol will be used.
+ */
+
 #include <Arduino.h>
 
 #include <WiFi.h>
@@ -5,39 +11,53 @@
 #include <HTTPClient.h>
 
 //#define WIFI_SSID "Tartu Kolledž"
-//#define WIFI_PASS "Puie5tee"
-//#define WIFI_SSID "k10-firstfloor"      // your network SSID (name)
-//#define WIFI_PASS "aPustiKaV1nternet"   // your network key
-//#define WIFI_SSID "Telia-86EB42"        // your network SSID (name)
-//#define WIFI_PASS "EMPBNVJUMMHXRR"      // your network key
-
+//#define WIFI_PASS "..."
 
 #define HTTP_SERVER "https://dev.intellisoft.ee/tabloo/ask/?c="
 
 //HTTP: See https://randomnerdtutorials.com/esp32-http-get-post-arduino/
 
-void startConnection(const char* ssid, const char* password)
+/**
+ * Start WiFi connection with given SSID and password
+ */
+bool startConnection(const char* ssid, const char* password)
 {
     if(ssid == nullptr)
     {
         Serial.print("Wifi SSID not given");
-        return;
+        return false;
     }
     Serial.print("WiFi: Connecting to ");
     Serial.print(ssid);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 
+    //TODO do something with hardcoded timeout
+    unsigned long wifiConnectionTimeout = millis() + 10000;
+
     while (WiFi.status() != WL_CONNECTED) {
         Serial.print(".");
+        if(millis() > wifiConnectionTimeout)
+        {
+            Serial.println(" failed");
+            return false;
+        }
         delay(500);
     }
 
     Serial.println("\nWiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    return true;
 }
 
+/**
+ * Get the data from server
+ * @param stopId null terminated c string, Bus stop ID from GTFS database, for example 7820161-1
+ * @param data address of buffer, where fetched data will be copied
+ * @param dataSize size of data fetched
+ * @return true if succeeded
+ */
 bool fetchData(const char* stopId, char*& data, size_t& dataSize){
 
     if(WiFi.status() != WL_CONNECTED)

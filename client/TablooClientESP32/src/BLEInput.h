@@ -1,4 +1,4 @@
-/** NimBLE_Server Demo:
+/** Based on NimBLE_Server Demo:
  *
  *  Demonstrates many of the available features of the NimBLE server library.
  *  
@@ -9,6 +9,10 @@
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
+
+#define MAX_BLE_COMMAND_SIZE 100
+
+void (*ble_onCommandReceived)(char* command) = nullptr;           // Command received
 
 static NimBLEServer* pServer;
 
@@ -82,6 +86,13 @@ class CharacteristicCallbacks: public NimBLECharacteristicCallbacks {
         Serial.print(pCharacteristic->getUUID().toString().c_str());
         Serial.print(": onWrite(), value: ");
         Serial.println(pCharacteristic->getValue().c_str());
+
+         
+
+        if(ble_onCommandReceived != nullptr)
+            ble_onCommandReceived((char*)(pCharacteristic->getValue().c_str()));
+
+
     };
     /** Called before notification or indication is sent, 
      *  the value can be changed here before sending if desired.
@@ -149,89 +160,41 @@ void startBleSetup() {
 
     /** sets device name */
     NimBLEDevice::init("Tabloo_v1");
+    Serial.println("initialized");
+    Serial.flush();
 
-    /** Optional: set the transmit power, default is 3db */
-    //NimBLEDevice::setPower(ESP_PWR_LVL_P9); /** +9db */
-    
-    /** Set the IO capabilities of the device, each option will trigger a different pairing method.
-     *  BLE_HS_IO_DISPLAY_ONLY    - Passkey pairing
-     *  BLE_HS_IO_DISPLAY_YESNO   - Numeric comparison pairing
-     *  BLE_HS_IO_NO_INPUT_OUTPUT - DEFAULT setting - just works pairing
-     */
-    //NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY); // use passkey
-    //NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_YESNO); //use numeric comparison
-
-    /** 2 different ways to set security - both calls achieve the same result.
-     *  no bonding, no man in the middle protection, secure connections.
-     *   
-     *  These are the default values, only shown here for demonstration.   
-     */ 
-    //NimBLEDevice::setSecurityAuth(false, false, true); 
     NimBLEDevice::setSecurityAuth(/*BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM |*/ BLE_SM_PAIR_AUTHREQ_SC);
 
     pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(new ServerCallbacks());
 
-    NimBLEService* pDeadService = pServer->createService("DEAD");
-    NimBLECharacteristic* pBeefCharacteristic = pDeadService->createCharacteristic(
-                                               "BEEF",
-                                               NIMBLE_PROPERTY::READ |
-                                               NIMBLE_PROPERTY::WRITE |
-                               /** Require a secure connection for read and write access */
-                                               NIMBLE_PROPERTY::READ_ENC |  // only allow reading if paired / encrypted
-                                               NIMBLE_PROPERTY::WRITE_ENC   // only allow writing if paired / encrypted
-                                              );
-  
-    pBeefCharacteristic->setValue("Burger");
-    pBeefCharacteristic->setCallbacks(&chrCallbacks);
 
-    /** 2904 descriptors are a special case, when createDescriptor is called with
-     *  0x2904 a NimBLE2904 class is created with the correct properties and sizes.
-     *  However we must cast the returned reference to the correct type as the method
-     *  only returns a pointer to the base NimBLEDescriptor class.
-     */
-    NimBLE2904* pBeef2904 = (NimBLE2904*)pBeefCharacteristic->createDescriptor("2904"); 
-    pBeef2904->setFormat(NimBLE2904::FORMAT_UTF8);
-    pBeef2904->setCallbacks(&dscCallbacks);
+    Serial.println("server created");
+    Serial.flush();
   
-
-    NimBLEService* pBaadService = pServer->createService("BAAD");
-    NimBLECharacteristic* pFoodCharacteristic = pBaadService->createCharacteristic(
-                                               "F00D",
+    NimBLEService* pSetupService = pServer->createService("AAAA");
+    NimBLECharacteristic* pSetupCharacteristic = pSetupService->createCharacteristic(
+                                               "AAAB",
                                                NIMBLE_PROPERTY::READ |
                                                NIMBLE_PROPERTY::WRITE |
                                                NIMBLE_PROPERTY::NOTIFY
                                               );
 
-    pFoodCharacteristic->setValue("Fries");
-    pFoodCharacteristic->setCallbacks(&chrCallbacks);
+    Serial.println("service created");
+    Serial.flush();
 
-    /** Note a 0x2902 descriptor MUST NOT be created as NimBLE will create one automatically
-     *  if notification or indication properties are assigned to a characteristic.
-     */
+    pSetupCharacteristic->setValue("--");
+    pSetupCharacteristic->setCallbacks(&chrCallbacks);
 
-    /** Custom descriptor: Arguments are UUID, Properties, max length in bytes of the value */
-    NimBLEDescriptor* pC01Ddsc = pFoodCharacteristic->createDescriptor(
-                                               "C01D",
-                                               NIMBLE_PROPERTY::READ | 
-                                               NIMBLE_PROPERTY::WRITE|
-                                               NIMBLE_PROPERTY::WRITE_ENC, // only allow writing if paired / encrypted
-                                               20
-                                              );
-    pC01Ddsc->setValue("Send it back!");
-    pC01Ddsc->setCallbacks(&dscCallbacks);
+    Serial.println("callback set");
+    Serial.flush();
 
-    /** Start the services when finished creating all Characteristics and Descriptors */  
-    pDeadService->start();
-    pBaadService->start();
+    pSetupService->start();
+    Serial.println("service started");
+    Serial.flush();
 
     NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
-    /** Add the services to the advertisment data **/
-    pAdvertising->addServiceUUID(pDeadService->getUUID());
-    pAdvertising->addServiceUUID(pBaadService->getUUID());
-    /** If your device is battery powered you may consider setting scan response
-     *  to false as it will extend battery life at the expense of less data sent.
-     */
+    pAdvertising->addServiceUUID(pSetupService->getUUID());
     pAdvertising->setScanResponse(true);
     pAdvertising->start();
 
@@ -260,3 +223,32 @@ void ble_loop() {
     }
     */
 }
+
+
+class BLEInput {
+
+    char serialCommandBuffer[MAX_BLE_COMMAND_SIZE] = {0};      // Setup command buffer
+    char* serialCommandCurrentByte = serialCommandBuffer;         // current byte being received from serial
+    void (*onCommandReceived)(char* command) = nullptr;           // Command received
+ 
+public:
+
+    BLEInput(void (*commandReceivedCallback)(char* command)) {
+        this->onCommandReceived = commandReceivedCallback;
+
+        startBleSetup();
+
+    }
+
+    void processSerialCommand() {
+        *serialCommandCurrentByte = 0;
+        if(onCommandReceived != nullptr)
+            onCommandReceived(serialCommandBuffer);
+    }
+
+    void loop() {
+
+        //TODO?
+
+    }
+};

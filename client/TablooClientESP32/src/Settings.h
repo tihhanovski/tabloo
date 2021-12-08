@@ -1,27 +1,49 @@
 #include "FS.h"
 #include "SPIFFS.h"
 
+#ifndef TABLOO_SETTINGS
+
+#define TABLOO_SETTINGS included
+
+// If storage size is not defined, set it to default value
 #ifndef STORAGE_SIZE
   #define STORAGE_SIZE 200
 #endif
 
+// Set storage path to default value if not set up yet
 #ifndef SETTINGS_STORAGE_PATH
   #define SETTINGS_STORAGE_PATH "/settings.data"
 #endif
 
+// Internal types definitions
 #define keypos_t uint8_t
 #define keysize_t uint8_t
 #define valsize_t uint8_t
+
+// Used when key not found
 #define IMPOSSIBLE_KEYPOS 255
 
+/**
+ * Storage class
+ * Storage is loaded from SPIFFS as sequence of keys and values separated by \\0 character.
+ * 
+ * Example:
+ * key1\0value1\0key2\0value2\0
+ * After loading internal arrays of pointers to each key and value created.
+ */
 class Settings {
 
-  char buffer[STORAGE_SIZE];
-  size_t keysUsed;
-  size_t storageUsed;
-  keypos_t keyCount;
+  char buffer[STORAGE_SIZE];  // Buffer for keys and values
+  size_t keysUsed;            // keys counter
+  size_t storageUsed;         // storage used in bytes
+  keypos_t keyCount;          // max keys/values count in storage
   bool loaded = false;
 
+  /** 
+   * Find the position of given key
+   * @param key key as c string
+   * @return position of key/value in keys array or IMPOSSIBLE_KEYPOS if not found
+   */
   keypos_t getPos(const char* key) {
     for(keypos_t i = 0; i < keysUsed; i++)
       if(!strcmp(key, keys[i]))
@@ -29,6 +51,10 @@ class Settings {
     return IMPOSSIBLE_KEYPOS;
   }
 
+  /**
+   * Delete pair of key/value on given position
+   * @param pos position in keys/values array
+   */
   void deletePair(keypos_t pos) {
     size_t bytesToClean;
     if(pos < keysUsed - 1) {
@@ -50,6 +76,9 @@ class Settings {
     keysUsed--;
   }
 
+  /**
+   * Initialize keys and values arrays after buffer was loaded.
+   */
   void map()
   {
     bool expectingKey = true;
@@ -80,31 +109,38 @@ class Settings {
 
 public:
   
+  // Getters for some internal stuff
   size_t getKeysUsed() { return keysUsed; }
   size_t getStorageUsed() { return storageUsed; }
   size_t getKeyCount() { return keyCount; }
+  char* getBuffer() { return buffer; }
   
-  char** keys;
-  char** values;
+  //TODO move it to private part
+  char** keys;      // pointers to keys
+  char** values;    // pointers to characters
 
+  /**
+   * Empty the buffer.
+   * Initialize the storage.
+   */
   void clear() {
     memset(buffer, 0, STORAGE_SIZE);
     keysUsed = 0;
     storageUsed = 0;
   }
 
+  /**
+   * @param keyCount maximum amount of keys/values
+   */
   Settings(keypos_t keyCount) {
     this->keyCount = keyCount;
     keys = new char*[keyCount];
     values = new char*[keyCount];
     clear();
   }
-    
-  char* getBuffer() {
-    return buffer;
-  }
-
+  
   ~Settings() {
+    // Free arrays memory
     delete[] keys;
     delete[] values;
   }
@@ -122,6 +158,10 @@ public:
     return i == IMPOSSIBLE_KEYPOS ? nullptr : values[i];
   }
       
+  /**
+   * Delete given key and corresponding value
+   * @param key key to delete (c string)
+   */
   bool del(char* key) {
 
     if(!loaded)
@@ -139,13 +179,17 @@ public:
 
   /**
    * Set value for given key
+   * Delete key/value, if value is empty
+   * @param key null terminated cstring
+   * @param value null terminated cstring
+   * @return true if succeeded, false otherwise
   */
   bool set(char* key, char* value) {  //Set value for given key
 
     if(!loaded)
       load();
 
-    if(!(*value))
+    if(!(*value))               // TODO is it ok to check like this?
       return del(key);
     keypos_t i = getPos(key);
     valsize_t valSize = strlen(value);
@@ -192,6 +236,9 @@ public:
     return true;
   }
 
+  /**
+   * Load buffer from SPIFFS
+   */
   void load()
   {
     Serial.println("*Loading storage");
@@ -218,6 +265,9 @@ public:
     loaded = true;
   }
 
+  /**
+   * Load buffer to SPIFFS
+   */
   void save()
   {
     Serial.println("*Saving storage");
@@ -236,3 +286,5 @@ public:
 
   bool isLoaded() { return loaded; }
 };
+
+#endif
