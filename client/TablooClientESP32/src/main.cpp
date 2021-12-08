@@ -16,11 +16,27 @@ Settings settings(10);      // TODO set proper max keys count
 #include "Util.h"
 #include "BLESetup.h"
 
+#include "Timetables.h"
+
+/**
+ * Settings could be done via serial port: 
+ * Commands:
+ *  setup list - return setup variables
+ *  setup set <var name>=<var value> - set a variable
+ *  setup set <var name> - delete variable
+ *  setup save - save and restart
+ * 
+ * Setup variables:
+ *  si - bus stop ID
+ *  ws - wifi SSID
+ *  wp - wifi password
+ */
+
 #define MAX_SERIAL_COMMAND_SIZE 100
 
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
-#define PANEL_RES_Y 32     // Number of pixels tall of each INDIVIDUAL panel module.
-#define PANEL_CHAIN 1      // Total number of panels chained one to another
+#define PANEL_RES_Y 32      // Number of pixels tall of each INDIVIDUAL panel module.
+#define PANEL_CHAIN 1       // Total number of panels chained one to another
 
 MatrixPanel_I2S_DMA *display = nullptr;
 
@@ -28,17 +44,14 @@ const uint16_t black = display->color444(0, 0, 0);
 
 //#define BUSSTOP_ID "7820161-1"
 
+/** @brief Buffer for data retrieved from server
+ */
 char* data;
-size_t dataSize;
+size_t dataSize; /** @brief size of data */
 
 Marquees scrolls;
 
-
-struct LineData {
-  const char* no;
-  const char* name;
-  const char* dir;
-};
+Timetable timetable;
 
 unsigned long timeDelta;
 
@@ -115,31 +128,44 @@ void loadData() {
     return;
   }
 
-  //String serverPath = String(HTTP_SERVER) + String(stopId);
-  
   fetchData(stopId, data, dataSize);
 
   Serial.print("Setting time ... ");
   setTime(data[0], data[1], data[2]);
   Serial.println("OK");
 
-  LineData* lines = new LineData[data[3]];
+  timetable.loadTimes(data);
 
-  const char* addr = data + 4;
-  for(uint8_t i = 0; i < data[3]; i++)
+  //LineData* lines = new LineData[data[3]];
+
+  //const char* addr = data + 4;
+  scrolls.clear();
+  display->setTextColor(display->color444(0,0,15));
+  for(uint8_t i = 0; i < timetable.lineCount; i++)
   {
-    addr += strlen(lines[i].no = addr);
-    addr += strlen(lines[i].name = addr);
-    addr += strlen(lines[i].dir = addr);          
     Serial.print("Line ");
     Serial.print(i);
     Serial.print(": ");
-    Serial.print(lines[i].no);
+    Serial.print(timetable.lines[i].shortName);
     Serial.print("\t");
-    Serial.print(lines[i].name);
+    Serial.print(timetable.lines[i].longName);
     Serial.print("\t");
-    Serial.print(lines[i].dir);
+    Serial.print(timetable.lines[i].headSign);
     Serial.print("\n");
+
+    display->fillRect(0, i * 8, 12, 8, black);
+    display->setCursor(0, i * 8);
+    display->print(timetable.lines[i].shortName);
+    
+    scrolls.add(new Marquee(
+      timetable.lines[i].longName, display, 
+      12, 
+      i * 8,  //TODO 
+      display->width() - 24, 
+      8, 
+      300, 
+      black
+      ));
   }
 
   outputMemoryData();
@@ -155,11 +181,11 @@ void start()
   display->drawBitmap(0, 0, TalTechLogo, 64, 32, black, display->color444(15,15,15));
   delay(1500);
 
-  // Load data
-  loadData(); 
-
   // Clear the screen 
   display->fillRect(0, 0, display->width(), display->height(), black);
+  
+  loadData(); 
+
 }
 
 bool startSuccessfull;
@@ -245,6 +271,7 @@ void clock_show()
     String hh = (h < 10 ? "0" : "") + String(h);
     String mm = (m < 10 ? "0" : "") + String(m);
 
+    display->setTextColor(display->color444(0,15,0));
     display->setCursor(x, 24);
     display->print(hh);
     if(timeColon)

@@ -109,6 +109,10 @@ public:
     delete[] values;
   }
 
+  /** Get the value for the given key
+   * @param key
+   * @return value or nullptr if value does not exist
+   */
   char* get(const char* key) {
 
     if(!loaded)
