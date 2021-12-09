@@ -1,7 +1,11 @@
 /**
+ * Tabloo - opensource bus stop display
  * Connection code
  * This is used only for testing of prototype: wifi connection, data fetch from HTTP
  * In actual system other medium (maybe LoRa) and protocol will be used.
+ * 
+ * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
+ *
  */
 
 #include <Arduino.h>

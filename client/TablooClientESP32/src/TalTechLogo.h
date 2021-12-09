@@ -1,4 +1,12 @@
-//created with https://github.com/ehubin/Adafruit-GFX-Library/tree/master/Img2Code
+/**
+ * Tabloo - opensource bus stop display
+ * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
+ * 
+ * Just a beautiful TalTech logo
+ * created with https://github.com/ehubin/Adafruit-GFX-Library/tree/master/Img2Code
+ * 
+ */
+
 const uint8_t TalTechLogo[] = {
 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,

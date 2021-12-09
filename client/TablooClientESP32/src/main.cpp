@@ -1,14 +1,36 @@
+/**
+ * Tabloo - opensource bus stop display
+ * Main module
+ * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
+ * 
+ * current state of code: Proof of concept. 
+ * 1. Downloads some data from server and displays it
+ * 2. Possible to set up via serial port or BLE
+ * 3. Uses DHT11 sensor and shows its output (temperature)
+ * TODO: refactor code to get rid of spaghetti style
+ * TODO: Wifi -> LoRa
+ * TODO: Larger display (2x1 modules, maybe 3x2 or 4x2 modules?)
+ * TODO: Send sensor and telemetry data to server
+ * TODO: Bug in setup - data corrupted sometimes when {setup set xxx=yyy} used
+ * TODO: Better BLE code
+ * TODO: CPU panics (and controller reboots) if no data fetched from HTTP (any error) 
+ * 
+ */
+
 #include <Arduino.h>
 
-//#define HAS_BLE true
+// ESP32 internal SD filesystem. Used to store settings etc
+#include <SPIFFS.h>
 
-#include <SPIFFS.h>         // ESP32 internal SD filesystem. Used to store settings etc
+// Temperature and humidity sensor library
+// see https://github.com/beegee-tokyo/DHTesp
+#include <DHTesp.h>         
 
 #include "Settings.h"       // Settings module - key-value storage
 #include "SerialInput.h"    // Getting input from serial
-Settings settings(10);      // TODO set proper max keys count
 
-// RGB LED panel library
+// RGB LED panel library, 
+// see https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 
 #include "Connection.h"     // Wifi stub for connection
@@ -18,12 +40,12 @@ Settings settings(10);      // TODO set proper max keys count
 
 #include "BLEInput.h"       // BLE setup TODO
 
-#include "Timetables.h"
+#include "Timetables.h"     // Timetables code
 
-#include <DHTesp.h>
 
-#define DHTPIN 21       // Digital pin connected to the DHT sensor
+#define DHTPIN 21               // Digital pin connected to the DHT sensor
 #define DHTTYPE DHTesp::DHT11   // DHT 11
+Settings settings(10);      // TODO set proper max keys count
 
 DHTesp dht;
 
@@ -45,8 +67,6 @@ const char* SETUP_BUSSTOP_ID = "si";    // Bus stop ID setup variable
 const char* SETUP_WIFI_SSID = "ws";     // Wifi SSID setup var
 const char* SETUP_WIFI_PASSWORD = "wp"; // Wifi password setup variable
 
-
-
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
 #define PANEL_RES_Y 32      // Number of pixels tall of each INDIVIDUAL panel module.
 #define PANEL_CHAIN 1       // Total number of panels chained one to another
@@ -55,8 +75,8 @@ MatrixPanel_I2S_DMA *display = nullptr;
 
 const uint16_t black = display->color444(0, 0, 0);
 
-char* data;                 /** @brief Buffer for data retrieved from server */
-size_t dataSize;            /** @brief size of data */
+char* data;                 // Buffer for data retrieved from server
+size_t dataSize;            // Size of data
 Marquees scrolls;           // Marquees collection
 Timetable timetable;        // Timetable object
 
@@ -76,8 +96,7 @@ void setTime(uint8_t h, uint8_t m, uint8_t s) {
  * Show the error message on matrix panel as a marquee
  * @param msg error message
  */
-void displayError(const char* msg)
-{
+void displayError(const char* msg) {
   scrolls.clear();
   display->fillRect(0, 0, display->width(), display->height(), black);
   scrolls.add(new Marquee(msg, display, 0, 0, display->width(), 8, 300, black));
@@ -87,7 +106,6 @@ void displayError(const char* msg)
  * Load data from server and display it
  */
 void loadData() {
-
   char* stopId = settings.get(SETUP_BUSSTOP_ID);
   if(stopId == nullptr)
   {
@@ -219,7 +237,6 @@ void processCommand(char* command) {
 bool startSuccessfull;    // True if start was successfull
 
 SerialInput serialInput(processCommand);
-//BLEInput bleInput(processCommand);
 
 void setup() {
 
@@ -296,7 +313,7 @@ unsigned long nextTimeTime = 0;     // Time when next clock repaint should occur
 bool timeColon = false;             // Colon between hh and mm in clock to visualise ticking
 
 /**
- * Repaint clock area twice per second
+ * Repaint clock area two times every second
  */
 void clock_show() {
   unsigned long t = millis();
@@ -310,12 +327,6 @@ void clock_show() {
     uint8_t h;
     uint8_t m;
     getCurrentHoursAndMinutes(h, m);
-
-    /*
-    unsigned long tt = (timeDelta + t) / 60000;
-    uint8_t h = (tt / 60) % 24;
-    uint8_t m = tt % 60;
-    */
 
     String hh = (h < 10 ? "0" : "") + String(h);
     String mm = (m < 10 ? "0" : "") + String(m);

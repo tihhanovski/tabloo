@@ -1,10 +1,13 @@
-/** Based on NimBLE_Server Demo:
- *
- *  Demonstrates many of the available features of the NimBLE server library.
- *  
- *  Created: on March 22 2020
- *      Author: H2zero
+/**
+ * Tabloo - opensource bus stop display
+ * BLE communication to setup tabloo
+ * see 
+ * https://h2zero.github.io/esp-nimble-cpp/index.html
+ * https://github.com/h2zero/esp-nimble-cpp
  * 
+ * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
+ * 
+ * TODO: very basic and raw code. Refactor! 
 */
 
 #include <Arduino.h>

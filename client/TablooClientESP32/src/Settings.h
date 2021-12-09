@@ -1,3 +1,13 @@
+/**
+ * Tabloo - opensource bus stop display
+ * key-value storage
+ * 
+ * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com> 
+ * 
+ * TODO: really bad bug when overwrite existing keys value. Data gets corrupted
+ * TODO: just use third party working key-value class?
+ */
+
 #include "FS.h"
 #include "SPIFFS.h"
 

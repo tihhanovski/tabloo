@@ -1,4 +1,6 @@
 // see https://randomnerdtutorials.com/esp32-flash-memory/
+// Not working
+// Not used
 
 #include <EEPROM.h>
 #include <nvs_flash.h>
