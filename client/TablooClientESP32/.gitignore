@@ -4,4 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 a.out
-**/.DS_Store
+.DS_Store
