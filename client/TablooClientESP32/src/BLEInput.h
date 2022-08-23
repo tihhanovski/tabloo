@@ -141,7 +141,9 @@ class CharacteristicCallbacks: public NimBLECharacteristicCallbacks {
 /** Handler class for descriptor actions */    
 class DescriptorCallbacks : public NimBLEDescriptorCallbacks {
     void onWrite(NimBLEDescriptor* pDescriptor) {
-        std::string dscVal((char*)pDescriptor->getValue(), pDescriptor->getLength());
+        // next line does not compile any more. TODO
+        //std::string dscVal((char*)pDescriptor->getValue(), pDescriptor->getLength());
+        std::string dscVal = pDescriptor->toString();
         Serial.print("Descriptor witten value:");
         Serial.println(dscVal.c_str());
     };
