@@ -8,7 +8,7 @@
  * 2. Possible to set up via serial port or BLE
  * 3. Uses DHT11 sensor and shows its output (temperature)
  * TODO: refactor code to get rid of spaghetti style
- * TODO: Wifi -> LoRa
+ * TODO: Wifi -> LoRa?
  * TODO: Larger display (2x1 modules, maybe 3x2 or 4x2 modules?)
  * TODO: Send sensor and telemetry data to server
  * TODO: Bug in setup - data corrupted sometimes when {setup set xxx=yyy} used
@@ -17,6 +17,10 @@
  * 
  */
 
+#define BLEINPUT_ENABLED false
+#define LOGO_ENABLED false
+#define MATRIX_HUB75_ENABLED false
+
 #include <Arduino.h>
 
 // ESP32 internal SD filesystem. Used to store settings etc
@@ -24,30 +28,40 @@
 
 // Temperature and humidity sensor library
 // see https://github.com/beegee-tokyo/DHTesp
-#include <DHTesp.h>         
+// #include <DHTesp.h>         
 
 #include "Settings.h"       // Settings module - key-value storage
 #include "SerialInput.h"    // Getting input from serial
 
+#include "Connection.h"     // Wifi stub for connection
+
 // RGB LED panel library, 
 // see https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA
+#if MATRIX_HUB75_ENABLED
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
-
-#include "Connection.h"     // Wifi stub for connection
 #include "Marquee.h"        // Marquee library
+#endif
+
+
+#if LOGO_ENABLED
 #include "TalTechLogo.h"    // hardcoded Taltech logo
+#endif
+
 #include "Util.h"           // Misc utilities will be here
 
+#if BLEINPUT_ENABLED
 #include "BLEInput.h"       // BLE setup TODO
+#endif
 
 #include "Timetables.h"     // Timetables code
+#include "ExternalSensors.h"        // I2C connectivity with external sensors
 
 
-#define DHTPIN 21               // Digital pin connected to the DHT sensor
-#define DHTTYPE DHTesp::DHT11   // DHT 11
+// #define DHTPIN 21               // Digital pin connected to the DHT sensor
+// #define DHTTYPE DHTesp::DHT11   // DHT 11
 Settings settings(10);      // TODO set proper max keys count
 
-DHTesp dht;
+// DHTesp dht;
 
 /**
  * Settings could be done via serial port: 
@@ -67,6 +81,7 @@ const char* SETUP_BUSSTOP_ID = "si";    // Bus stop ID setup variable
 const char* SETUP_WIFI_SSID = "ws";     // Wifi SSID setup var
 const char* SETUP_WIFI_PASSWORD = "wp"; // Wifi password setup variable
 
+#if MATRIX_HUB75_ENABLED
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
 #define PANEL_RES_Y 32      // Number of pixels tall of each INDIVIDUAL panel module.
 #define PANEL_CHAIN 1       // Total number of panels chained one to another
@@ -74,10 +89,26 @@ const char* SETUP_WIFI_PASSWORD = "wp"; // Wifi password setup variable
 MatrixPanel_I2S_DMA *display = nullptr;
 
 const uint16_t black = display->color444(0, 0, 0);
+Marquees scrolls;           // Marquees collection
+
+/**
+ * Show the error message on matrix panel as a marquee
+ * @param msg error message
+ */
+#endif
+
+void displayError(const char* msg) {
+  Serial.print("ERROR! ");
+  Serial.println(msg);
+  #if MATRIX_HUB75_ENABLED
+  scrolls.clear();
+  display->fillRect(0, 0, display->width(), display->height(), black);
+  scrolls.add(new Marquee(msg, display, 0, 0, display->width(), 8, 300, black));
+  #endif
+}
 
 char* data;                 // Buffer for data retrieved from server
 size_t dataSize;            // Size of data
-Marquees scrolls;           // Marquees collection
 Timetable timetable;        // Timetable object
 
 unsigned long timeDelta;    // Difference (in msec) between microcontroller millis and actual current local time got from server
@@ -92,15 +123,6 @@ void setTime(uint8_t h, uint8_t m, uint8_t s) {
   timeDelta = 1000 * (h * 3600 + m * 60 + s) - millis();
 }
 
-/**
- * Show the error message on matrix panel as a marquee
- * @param msg error message
- */
-void displayError(const char* msg) {
-  scrolls.clear();
-  display->fillRect(0, 0, display->width(), display->height(), black);
-  scrolls.add(new Marquee(msg, display, 0, 0, display->width(), 8, 300, black));
-}
 
 /**
  * Load data from server and display it
@@ -122,8 +144,10 @@ void loadData() {
 
   timetable.loadTimes(data);
 
+  #if MATRIX_HUB75_ENABLED
   scrolls.clear();
   display->setTextColor(display->color444(0,0,15));
+  #endif
   for(uint8_t i = 0; i < timetable.lineCount; i++)
   {
     Serial.print("Line ");
@@ -136,6 +160,7 @@ void loadData() {
     Serial.print(timetable.lines[i].headSign);
     Serial.print("\n");
 
+    #if MATRIX_HUB75_ENABLED
     display->fillRect(0, i * 8, 12, 8, black);
     display->setCursor(0, i * 8);
     display->print(timetable.lines[i].shortName);
@@ -149,6 +174,7 @@ void loadData() {
       300, 
       black
       ));
+    #endif
   }
 
   outputMemoryData();
@@ -161,15 +187,20 @@ void start()
 {
   Serial.println("Starting");
 
+  #if MATRIX_HUB75_ENABLED
   // Show beautiful splash screen with taltech logo for 1.5 seconds
   display->setTextWrap(false);
   display->setTextColor(display->color444(15,0,0));
   display->fillRect(0, 0, display->width(), display->height(), black);
+
+  #if LOGO_ENABLED
   display->drawBitmap(0, 0, TalTechLogo, 64, 32, black, display->color444(15,15,15));
   delay(1500);
+  #endif
 
   // Clear the screen 
   display->fillRect(0, 0, display->width(), display->height(), black);
+  #endif
   
   loadData();
 }
@@ -238,23 +269,10 @@ bool startSuccessfull;    // True if start was successfull
 
 SerialInput serialInput(processCommand);
 
-void setup() {
-
-  startSuccessfull = false;
-
-  ble_onCommandReceived = processCommand;
-
-  Serial.begin(115200);
-
-  // Start internal filesystem
-  // Settings (and more) is stored here
-  if(!SPIFFS.begin(true)){
-    Serial.println("SPIFFS Mount Failed");
-  }
-
-  outputMemoryData();
-
+void initMatrixDisplay() {
+  #if MATRIX_HUB75_ENABLED
   // Display module configuration
+  
   HUB75_I2S_CFG mxconfig(
     PANEL_RES_X,   // module width
     PANEL_RES_Y,   // module height
@@ -276,14 +294,43 @@ void setup() {
   display->setTextWrap(true); // Don't wrap at end of line - will do ourselves
   display->setTextColor(display->color444(15,15,15));
 
-  startBleSetup();
-
-  dht.setup(DHTPIN, DHTTYPE);
-	Serial.println("DHT initiated");
-
-  
   display->setCursor(0, 0);
   display->print("Connecting...");
+  #endif
+}
+
+void setup() {
+
+  startSuccessfull = false;
+
+  #if BLEINPUT_ENABLED
+  ble_onCommandReceived = processCommand;
+  #endif
+
+  Serial.begin(115200);
+
+  startExternalSensors();
+
+  // Start internal filesystem
+  // Settings (and more) is stored here
+  if(!SPIFFS.begin(true)){
+    Serial.println("SPIFFS Mount Failed");
+  }
+
+  outputMemoryData();
+
+  initMatrixDisplay();
+
+
+  #if BLEINPUT_ENABLED
+  startBleSetup();
+  #endif
+
+  // dht.setup(DHTPIN, DHTTYPE);
+	// Serial.println("DHT initiated");
+
+
+
 
   const char* wifiSSID = settings.get(SETUP_WIFI_SSID);
   if(wifiSSID == nullptr)
@@ -319,6 +366,7 @@ void clock_show() {
   unsigned long t = millis();
   if(t >= nextTimeTime)
   {
+    #if MATRIX_HUB75_ENABLED
     nextTimeTime = t + 500;
     timeColon = !timeColon;
     int x = 39;
@@ -341,9 +389,11 @@ void clock_show() {
     }
     display->setCursor(x + 14, 24);
     display->print(mm);
+    #endif
   }
 }
 
+#if MATRIX_HUB75_ENABLED
 GFXcanvas1* cvsTimesToWait = nullptr;
 unsigned long nextTimeWait = 0;     // Time when waiting times will be calculated next time
 
@@ -373,10 +423,11 @@ void waiting_times_show() {
   }
   display->drawBitmap(display->width() - 18, 0, cvsTimesToWait->getBuffer(), 18, 24, display->color444(15,0,0), 0);
 }
+#endif
 
 unsigned long nextDhtPollingTime = 0;
 
-void display_dht() {
+/*void display_dht() {
   unsigned long t = millis();
   if(t >= nextDhtPollingTime)
   {
@@ -387,16 +438,20 @@ void display_dht() {
     display->setCursor(0, 24);
     display->print(newValues.temperature);
   }
-}
+}*/
 
 void loop() {
 
   if(startSuccessfull)
   {
+    #if MATRIX_HUB75_ENABLED
     scrolls.loop();
     waiting_times_show();
-    display_dht();
+    //display_dht();
     clock_show();
+    #endif
+
+    //processExternalSensors();
   }
 
   serialInput.loop();
