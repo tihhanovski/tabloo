@@ -18,8 +18,18 @@
  */
 
 #define BLEINPUT_ENABLED false
-#define LOGO_ENABLED false
-#define MATRIX_HUB75_ENABLED false
+#define LOGO_ENABLED true
+#define MATRIX_HUB75_ENABLED true
+#define EXTERNAL_SENSORS_ENABLED false
+#define WIFI_ENABLED false
+
+#define UARTIO_DEBUG true
+#include <HardwareSerial.h>
+#include <UARTIO.h>
+
+HardwareSerial SerialPort(2); // use UART2
+UARTIO io(SerialPort);
+
 
 #include <Arduino.h>
 
@@ -33,7 +43,9 @@
 #include "Settings.h"       // Settings module - key-value storage
 #include "SerialInput.h"    // Getting input from serial
 
+#if WIFI_ENABLED
 #include "Connection.h"     // Wifi stub for connection
+#endif
 
 // RGB LED panel library, 
 // see https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA
@@ -54,7 +66,12 @@
 #endif
 
 #include "Timetables.h"     // Timetables code
+
+#if EXTERNAL_SENSORS_ENABLED
 #include "ExternalSensors.h"        // I2C connectivity with external sensors
+#endif
+
+//HardwareSerial SerialPort(2); // use UART2
 
 
 // #define DHTPIN 21               // Digital pin connected to the DHT sensor
@@ -89,6 +106,7 @@ const char* SETUP_WIFI_PASSWORD = "wp"; // Wifi password setup variable
 MatrixPanel_I2S_DMA *display = nullptr;
 
 const uint16_t black = display->color444(0, 0, 0);
+const uint16_t red = display->color444(15, 0, 0);
 Marquees scrolls;           // Marquees collection
 
 /**
@@ -127,16 +145,21 @@ void setTime(uint8_t h, uint8_t m, uint8_t s) {
 /**
  * Load data from server and display it
  */
-void loadData() {
-  char* stopId = settings.get(SETUP_BUSSTOP_ID);
+void loadData(char* msg, uint32_t size) {
+  /*char* stopId = settings.get(SETUP_BUSSTOP_ID);
   if(stopId == nullptr)
   {
     setTime(0, 0, 0);
     displayError("No stop ID in setup, please set");
     return;
-  }
+  }*/
 
-  fetchData(stopId, data, dataSize);
+  dataSize = size;
+  data = new char[dataSize];
+  memcpy(data, msg, dataSize);
+
+
+  //fetchData(stopId, data, dataSize);
 
   Serial.print("Setting time ... ");
   setTime(data[0], data[1], data[2]);
@@ -193,6 +216,7 @@ void start()
   display->setTextColor(display->color444(15,0,0));
   display->fillRect(0, 0, display->width(), display->height(), black);
 
+
   #if LOGO_ENABLED
   display->drawBitmap(0, 0, TalTechLogo, 64, 32, black, display->color444(15,15,15));
   delay(1500);
@@ -202,7 +226,9 @@ void start()
   display->fillRect(0, 0, display->width(), display->height(), black);
   #endif
   
+  #if WIFI_ENABLED
   loadData();
+  #endif
 }
 
 const char* CMD_SETUP_SAVE = "setup save";                    // Comand to save setup
@@ -299,6 +325,8 @@ void initMatrixDisplay() {
   #endif
 }
 
+boolean bLedOn = false;
+
 void setup() {
 
   startSuccessfull = false;
@@ -309,7 +337,24 @@ void setup() {
 
   Serial.begin(115200);
 
+  // UART
+  SerialPort.begin(15200, SERIAL_8N1, 33, 32);
+  delay(1000);
+  Serial.println("UART slave:");
+  pinMode(2, OUTPUT);
+
+  
+  /*SerialPort.begin(15200, SERIAL_8N1, 33, 32);
+  delay(1000);
+  Serial.println("UART slave started on 33 and 32");
+  pinMode(2, OUTPUT);
+  */
+  // UART
+
+
+  #if EXTERNAL_SENSORS_ENABLED
   startExternalSensors();
+  #endif
 
   // Start internal filesystem
   // Settings (and more) is stored here
@@ -331,7 +376,7 @@ void setup() {
 
 
 
-
+  #if WIFI_ENABLED
   const char* wifiSSID = settings.get(SETUP_WIFI_SSID);
   if(wifiSSID == nullptr)
   {
@@ -343,6 +388,7 @@ void setup() {
   if (!startConnection(wifiSSID, settings.get(SETUP_WIFI_PASSWORD)))
     return;
   start();
+  #endif
 
   startSuccessfull = true;
 }
@@ -366,11 +412,16 @@ void clock_show() {
   unsigned long t = millis();
   if(t >= nextTimeTime)
   {
+    int16_t bx, by;
+    uint16_t bw, bh;
+
+    display->getTextBounds(String("00"), 0, 0, &bx, &by, &bw, &bh);
     #if MATRIX_HUB75_ENABLED
     nextTimeTime = t + 500;
     timeColon = !timeColon;
-    int x = 39;
-    display->fillRect(x, 24, 30, 8, black);
+    int x = display->width() - bw * 2 - 3;
+    int y = display->height() - bh;
+    display->fillRect(x, y, bw * 2 + 3, bh, black);
 
     uint8_t h;
     uint8_t m;
@@ -380,14 +431,14 @@ void clock_show() {
     String mm = (m < 10 ? "0" : "") + String(m);
 
     display->setTextColor(display->color444(0,15,0));
-    display->setCursor(x, 24);
+    display->setCursor(x, y);
     display->print(hh);
     if(timeColon)
     {
-      display->setCursor(x + 10, 24);
+      display->setCursor(x + bw - 3, y);
       display->print(":");
     }
-    display->setCursor(x + 14, 24);
+    display->setCursor(x + bw + 2, y);
     display->print(mm);
     #endif
   }
@@ -427,18 +478,7 @@ void waiting_times_show() {
 
 unsigned long nextDhtPollingTime = 0;
 
-/*void display_dht() {
-  unsigned long t = millis();
-  if(t >= nextDhtPollingTime)
-  {
-    nextDhtPollingTime = t + 10000;
-    TempAndHumidity newValues = dht.getTempAndHumidity();
-    display->fillRect(0, 24, 37, 8, black);
-    display->setTextColor(display->color444(12, 12, 12));
-    display->setCursor(0, 24);
-    display->print(newValues.temperature);
-  }
-}*/
+bool b = false;
 
 void loop() {
 
@@ -452,6 +492,28 @@ void loop() {
     #endif
 
     //processExternalSensors();
+  }
+
+  if (SerialPort.available())
+  {
+
+    unsigned long l = millis();
+
+    UARTIO_Message msg;
+    io.readMessage(msg);
+    l = millis() - l;
+    Serial.print("Received in ");
+    Serial.println(l);
+
+    display->drawRect(0, 0, display->width(), display->height(), red);
+    delay(500);
+
+    loadData(msg.body, msg.length);
+    delete msg.body;
+
+    b = !b;
+
+    digitalWrite(2, b);
   }
 
   serialInput.loop();

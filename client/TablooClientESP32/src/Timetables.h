@@ -24,6 +24,8 @@
  *      Arrival time hours 0 - 23       (1 byte)
  *      Arrival time minutes 0 - 59     (1 byte)
  *      Line index (from line names)    (1 byte)
+ * Sensors count (1 byte)
+ * Sensors addresses (<Sensor count> bytes), one byte per address
  */
 
 #include <Arduino.h>
