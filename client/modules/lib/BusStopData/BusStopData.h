@@ -45,12 +45,14 @@ public:
 /**
  * Timetable for one bus stop
  */
-class Timetable {
+class BusStopData {
     size_t timesCount;              // Count of times in timetable
     char* timetable = nullptr;      // Pointer to first byte of times massive
 public:
     LineData* lines = nullptr;      // Line data array
     uint8_t lineCount;              // Lines count
+    uint8_t sensorCount;            // Sensors count
+    char* sensors = nullptr;
 
 
     /** 
@@ -134,13 +136,22 @@ public:
         return 24 * 60 - currentMin + ret;             // Use first time as tomorrows first time
     }
 
+    void cleanup() {
+        if(lines != nullptr) {
+            delete[] lines;
+            lines = nullptr;
+        }
+        timetable = nullptr;
+        sensors = nullptr;
+    }
+
     /**
      * Initialize timetable with data received from server
      * @param data pointer to buffer fetched from server
      * Creates LineData instances for every line with pointers to names of lines
      * Saves address of beginning of timetable in buffer
      */
-    void loadTimes(char* data)
+    void initialize(char* data)
     {
         if(data == nullptr)
         {
@@ -173,5 +184,13 @@ public:
         timesCount = 256 * timeCountHi + timeCountLo;
 
         timetable = p;  //Save timetable start address
+
+        //Sensors data
+        p = p + timesCount * 3;
+        sensorCount = *p;
+        if(sensorCount > 0)
+            sensors = p + 1;
+        else
+            sensors = nullptr;
     }
 };

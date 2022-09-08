@@ -65,7 +65,9 @@ UARTIO io(SerialPort);
 #include "BLEInput.h"       // BLE setup TODO
 #endif
 
-#include "Timetables.h"     // Timetables code
+#include <BusStopData.h>
+
+//#include "Timetables.h"     // Timetables code
 
 #if EXTERNAL_SENSORS_ENABLED
 #include "ExternalSensors.h"        // I2C connectivity with external sensors
@@ -127,7 +129,7 @@ void displayError(const char* msg) {
 
 char* data;                 // Buffer for data retrieved from server
 size_t dataSize;            // Size of data
-Timetable timetable;        // Timetable object
+BusStopData timetable;        // Timetable object
 
 unsigned long timeDelta;    // Difference (in msec) between microcontroller millis and actual current local time got from server
 
@@ -165,7 +167,7 @@ void loadData(char* msg, uint32_t size) {
   setTime(data[0], data[1], data[2]);
   Serial.println("OK");
 
-  timetable.loadTimes(data);
+  timetable.initialize(data);
 
   #if MATRIX_HUB75_ENABLED
   scrolls.clear();
