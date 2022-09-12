@@ -34,14 +34,10 @@ class Importer {
             $stData = app()->db()->prepare(SQL_STOP_DATA);
             $stData->execute($params);
             $stopData = $stData->fetchObject();
+            $mqttTopic = MQTT_STOPS_TOPIC . $stopData->stop_code;
 
             $stTimetable = app()->db()->prepare(SQL_STOP_TIMES);
             $stTimetable->execute($params);
-
-            $stSensors = app()->db()->prepare(SQL_STOP_SENSORS);
-            $stSensors->execute($params);
-            
-
 
             while($row = $stTimetable->fetchObject()) {
                 if(isset($lineData[$row->route_short_name]))
@@ -61,31 +57,46 @@ class Importer {
             }
             $stc = count($stopTimes);
 
-            while($row = $stSensors->fetchObject())
-                $sensors[] = chr($row->deviceId);
-
-            $output =
+            $timetableOutput =
                 chr((int)date("H")) . chr((int)date("i")) . chr((int)date("s"))       //current time in seconds - 3 bytes
                 . chr(count($lineNames))                                              //count of lines
                 . implode($lineNames, "")                                             //line names
                 . chr(floor($stc / 256)) . chr($stc % 256)                            //count of times
-                . implode($stopTimes, "")                                             //times
-                . chr(count($sensors))
-                . implode($sensors, "");
-
+                . implode($stopTimes, "");                                            //times
 
             //post data to broker
-            //$mqtt->publish(MQTT_STOPS_TOPIC . $stopId, 'Hello stop #' . $stopId . ' at ' . date('r'), 0, false);
             $mqtt->publish(
-                MQTT_STOPS_TOPIC . $stopData->stop_code . "/table", 
-                $output,    //data
-                0,          //QOS
-                true       //retain
+                $mqttTopic . MQTT_STOPDATA_SUBTOPIC, 
+                $timetableOutput,       //data
+                1,                      //QOS at 2 = exactly once
+                true                    //retain
             );
+            echo "published to " . $mqttTopic . MQTT_STOPDATA_SUBTOPIC . "\n";
+
+            // Sensors data
+            // TODO: add sensors polling schedule
+            $stSensors = app()->db()->prepare(SQL_STOP_SENSORS);
+            $stSensors->execute($params);
+            while($row = $stSensors->fetchObject())
+                $sensors[] = chr($row->deviceId);
+
+            $sensorsOutput = 
+                chr(count($sensors))            // sensors count (1 byte)
+                . implode($sensors, "");        // sensors addresses (1 byte per sensor)
+
+            //post data to broker
+            $mqtt->publish(
+                $mqttTopic . MQTT_SENSORSLIST_SUBTOPIC, 
+                $sensorsOutput,     //data
+                1,                  //QOS at 2 = exactly once
+                true                //retain
+            );
+            echo "published to " . $mqttTopic . MQTT_SENSORSLIST_SUBTOPIC . "\n";
+
             $mqtt->close();
         } else {
             echo "Time out!\n";
-        }        
+        }
     }
 
 
