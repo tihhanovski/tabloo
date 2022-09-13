@@ -25,7 +25,7 @@ void setup()
     SerialPort.begin(15200, SERIAL_8N1, 33, 32);  // 16, 17
     delay(500);
 
-    startConnection(WIFI_SSID, WIFI_PASSWORD);
+    //startConnection(WIFI_SSID, WIFI_PASSWORD);
     //fetchData(STOP_ID, data, dataSize);
 
 }
@@ -37,7 +37,7 @@ unsigned long cloudPollNextTime = 0;
 
 void loop()
 {
-    if(millis() > cloudPollNextTime) {
+    /*if(millis() > cloudPollNextTime) {
 
         size_t uds = 0;
 
@@ -46,10 +46,10 @@ void loop()
 
 
         cloudPollNextTime = millis() + CLOUD_POLL_INTERVAL_SEC * 1000;
-    }
+    }*/
 
 
-    /*
+
     String s = msg + cnt;
     Serial.print(s);
     unsigned long l = millis();
@@ -60,6 +60,5 @@ void loop()
     cnt++;
     if(cnt > 200)
         cnt = 0;
-    delay(1000);
-    */
+    delay(2000);
 }

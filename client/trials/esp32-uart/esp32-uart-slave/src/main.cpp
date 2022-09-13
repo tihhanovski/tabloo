@@ -39,15 +39,17 @@ void loop()
 {
     if (SerialPort.available())
     {
+        UARTIO_Message msg;
         unsigned long l = millis();
-        char* txt = io.read();
-        l = millis() - l;
-        Serial.print("Received in ");
-        Serial.print(l);
-        Serial.print(": ");
-        Serial.println(txt);
+        //char* txt = io.read();
 
-        delete txt;
+        io.readMessage(msg);
+
+        l = millis() - l;
+
+        log_i("Received %d bytes in %d msec: CRC32=%d", msg.length, l, msg.crc32);
+
+        delete msg.body;
 
         b = !b;
 
