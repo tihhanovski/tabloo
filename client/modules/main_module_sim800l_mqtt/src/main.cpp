@@ -13,6 +13,23 @@
 #define MQTT_PASS "inf471c"
 #define MQTT_PORT 8883
 
+// non standard UART pins, standard are 16, 17
+#define UARTIO_DEBUG true
+//#define UART_RX 33
+//#define UART_TX 32
+
+//#define UART_RX 16
+//#define UART_TX 17
+
+#include <HardwareSerial.h>
+#include <UARTIO.h>
+#include <BusStopData.h>
+
+HardwareSerial SerialPort(2); // use UART2
+UARTIO io(SerialPort);
+//char *data;      // Buffer for data retrieved from server
+//size_t dataSize; // Size of data
+
 
 #include <Arduino.h>
 //#include <ArduinoHttpClient.h> //https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
@@ -33,6 +50,13 @@ uint8_t temprature_sens_read();
 
 unsigned long nextTimeRequest = 0;
 
+void onTimetableReceived(char* data, size_t dataSize) {
+    log_v("got timetable, push to display");
+    // push data as is to display
+    io.write(data, dataSize);
+    log_v("pushed %d bytes", dataSize);
+}
+
 void requestTime() {
 
     unsigned long t = millis();
@@ -50,8 +74,14 @@ void requestTime() {
 }
 
 void setup() {
+    // UART
+    SerialPort.begin(15200, SERIAL_8N1, 33, 32);
+    delay(1000);
+  
     Serial.begin(115200);
     setup_start();
+
+    mqtt_onTimetableReceived = onTimetableReceived;
     
     startModem();
     ensureConnected();
