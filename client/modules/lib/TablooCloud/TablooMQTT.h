@@ -32,10 +32,13 @@ char* mqtt_topic_output;
 PubSubClient  mqtt(client);
 uint32_t lastReconnectAttempt = 0;
 
-
+void (*mqtt_onTimetableReceived)(char* data, size_t len) = nullptr;
 
 void mqtt_callback(char* topic, byte* payload, unsigned int len) {
-    log_v("Message arrived: topic: '%s', payload: '%s'", topic, payload);
+    log_v("Message on topic: '%s', %d bytes", topic, len);
+
+    if(!strcmp(topic, mqtt_topic_table) && mqtt_onTimetableReceived != nullptr)
+        mqtt_onTimetableReceived((char*)payload, len);
 
     // Only proceed if incoming message's topic matches
     /*
@@ -87,7 +90,7 @@ boolean mqtt_connect() {
         log_i("Provide stop code and restart to connect to MQTT broker");
     }
     ensureConnected();
-    log_v("Connecting to %s as %s : %s", MQTT_BROKER, MQTT_USER, (strlen(MQTT_PASS) ? "**PASS_NOT_SET**" : "**PASS_SET**"));
+    log_v("Connecting to %s as %s : %s", MQTT_BROKER, MQTT_USER, (strlen(MQTT_PASS) ? "**PASS_SET**" : "**PASS_NOT_SET**"));
     // Connect to MQTT Broker
     //boolean status = mqtt.connect(mqtt_client_id);
     boolean status = mqtt.connect(mqtt_client_id, MQTT_USER, MQTT_PASS);

@@ -251,8 +251,16 @@ class UARTIO {
                 if(msg.body != nullptr)
                     delete msg.body;
             }
-            if(msg.crc32 == checksum)
+
+            logToSerial("\nchecksum send: ");
+            logToSerial(checksum);
+            logToSerial("\nchecksum rcvd: ");
+            logToSerial(msg.crc32);
+            if(msg.crc32 == checksum) {
+                logToSerial("\t Checksums OK");
                 return;
+            } else
+                logToSerial("\n!!! Checksums different !!!");
 
             delay(UARTIO_DELAY_BETWEEN_WRITE_RETRIES);
         }

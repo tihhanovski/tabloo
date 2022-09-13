@@ -24,6 +24,8 @@
  *      Arrival time hours 0 - 23       (1 byte)
  *      Arrival time minutes 0 - 59     (1 byte)
  *      Line index (from line names)    (1 byte)
+ *      Weekday mask                    (1 byte)
+ * NB! NO SENSORS ANYMORE
  * Sensors count (1 byte)
  * Sensors addresses (<Sensor count> bytes), one byte per address
  */
@@ -51,8 +53,8 @@ class BusStopData {
 public:
     LineData* lines = nullptr;      // Line data array
     uint8_t lineCount;              // Lines count
-    uint8_t sensorCount;            // Sensors count
-    char* sensors = nullptr;
+    //uint8_t sensorCount;            // Sensors count
+    //char* sensors = nullptr;
 
 
     /** 
@@ -142,7 +144,7 @@ public:
             lines = nullptr;
         }
         timetable = nullptr;
-        sensors = nullptr;
+        //sensors = nullptr;
     }
 
     /**
@@ -186,11 +188,12 @@ public:
         timetable = p;  //Save timetable start address
 
         //Sensors data
-        p = p + timesCount * 3;
+        /*p = p + timesCount * 3;
         sensorCount = *p;
         if(sensorCount > 0)
             sensors = p + 1;
         else
             sensors = nullptr;
+        */
     }
 };
