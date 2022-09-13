@@ -9,16 +9,20 @@
  *
  */
 
+#ifndef _TABLOOGSM_H_
+#define _TABLOOGSM_H_
+
 #include <Arduino.h>
-#include <ArduinoHttpClient.h> //https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
-#include <TablooGeneral.h>
+#include <ArduinoHttpClient.h>  //see https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
+#include <TablooGeneral.h>      //Various utilities
+#include <TablooSetup.h>        //Settings storage
 
-const char apn[]      = "internet.tele2.ee"; // APN (example: internet.vodafone.pt) use https://wiki.apnchanger.org
-const char gprsUser[] = ""; // GPRS User
-const char gprsPass[] = ""; // GPRS Password
-
+//All setup moved to preferences, see TablooSetup.h
+//const char apn[]      = "internet.tele2.ee"; // APN (example: internet.vodafone.pt) use https://wiki.apnchanger.org
+//const char gprsUser[] = ""; // GPRS User
+//const char gprsPass[] = ""; // GPRS Password
 // SIM card PIN (leave empty, if not defined)
-const char simPIN[]   = "0000";
+//const char simPIN[]   = "0000";
 
 // TTGO T-Call pins
 #define MODEM_RST            5
@@ -93,18 +97,24 @@ void startModem() {
 
     // Restart SIM800 module, it takes quite some time
     // To skip it, call init() instead of restart()
-    SerialMon.println("Initializing modem...");
+    log_i("Initializing modem...");
     modem.restart();
     // use modem.init() if you don't need the complete restart
 
+    #if CORE_DEBUG_LEVEL == 5
     String modemInfo = modem.getModemInfo();
-    SerialMon.print("Modem Info: ");
-    SerialMon.println(modemInfo);
+    log_v("Modem info: %s", modemInfo);
+    #endif
+
+    char* simPIN = setup_readStringValue(SETUP_KEY_GSM_PIN);
+    log_v("SIM PIN: %s", simPIN);
 
     // Unlock your SIM card with a PIN if needed
     if (strlen(simPIN) && modem.getSimStatus() != 3 ) {
-      modem.simUnlock(simPIN);
-    }  
+        log_v("Unlocking SIM with PIN");
+        modem.simUnlock(simPIN);
+    } else
+        log_v("No need to unlock SIM");
 }
 
 SimpleTime requestNetworkTime() {
@@ -118,31 +128,20 @@ SimpleTime requestNetworkTime() {
 
     SimpleTime ret;
     for (int8_t i = 5; i; i--) {
-        SerialMon.println("Requesting current network time");
+        log_v("Requesting current network time");
         if (modem.getNetworkTime(&year3, &month3, &day3, 
             &hour3, &min3, &sec3,
             &timezone)) 
         {
-            SerialMon.print("Year:");
-            SerialMon.print(year3);
-            SerialMon.print("\tMonth:");
-            SerialMon.print(month3);
-            SerialMon.print("\tDay:");
-            SerialMon.print(day3);
-            SerialMon.println("Hour:");
-            SerialMon.print(hour3);
-            SerialMon.print("\tMinute:");
-            SerialMon.print(min3);
-            SerialMon.print("\tSecond:");
-            SerialMon.println(sec3);
-            SerialMon.print("Timezone:");
-            SerialMon.println(timezone);
+            log_v("Year: %d-%d-%d %d:%d:%d %.1f", year3, month3, day3, hour3, min3, sec3, timezone);
+
             ret.hours = hour3;
             ret.minutes = min3;
             ret.seconds = sec3;
             break;
         } else {
-            SerialMon.print("Couldn't get network time, retrying in 15s.");
+            log_w("Couldn't get network time (try %d), retrying in 15s.", i);
+            //SerialMon.print("Couldn't get network time, retrying in 15s.");
             delay(15000L);
         }
     }
@@ -151,28 +150,41 @@ SimpleTime requestNetworkTime() {
 
 boolean ensureConnected() {
     if (!modem.isNetworkConnected()) {
-        SerialMon.println("Network disconnected");
+        log_i("Network disconnected");
         if (!modem.waitForNetwork(180000L, true)) {
-            SerialMon.println(" fail");
+            log_w("Network connection failed");
             delay(10000);
             return false;
         }
         if (modem.isNetworkConnected()) {
-            SerialMon.println("Network connected");
+            log_i("Network connected");
+            log_i("Signal quality: %d", modem.getSignalQuality());
         }
     }
 
     if (!modem.isGprsConnected()) {
-        SerialMon.println("GPRS disconnected!");
-        SerialMon.print(F("Connecting to "));
-        SerialMon.print(apn);
-        if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
-            SerialMon.println(" fail");
+        bool success  = false;
+        char* apn = setup_getStringValue(SETUP_KEY_GSM_APN);
+        char* gprsUser = setup_getStringValue(SETUP_KEY_GSM_USER);
+        char* gprsPass = setup_getStringValue(SETUP_KEY_GSM_PASS);
+        if(strlen(apn)) {
+            log_i("GPRS disconnected, connecting to %s as '%s' : '%s'", apn, gprsUser, gprsPass);
+            success = modem.gprsConnect(apn, gprsUser, gprsPass);
+        }
+        else
+            log_e("No APN provided. cant connect to GPRS");
+        delete apn;
+        delete gprsUser;
+        delete gprsPass;
+
+        if (!success) {
+            log_w("GPRS disconnection failed");
             delay(10000);
             return false;
         }
         if (modem.isGprsConnected()) { 
-            SerialMon.println("GPRS connected"); 
+            log_i("GPRS connected"); 
+            log_i("Signal quality: %d", modem.getSignalQuality());
         }
     }
     return true;
@@ -181,3 +193,5 @@ boolean ensureConnected() {
 boolean connectToNetwork() {
     return ensureConnected();
 }
+
+#endif

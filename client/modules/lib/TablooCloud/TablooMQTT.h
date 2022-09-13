@@ -8,121 +8,134 @@
  *
  */
 
+#ifndef _TABLOOMQTT_H_
+#define _TABLOOMQTT_H_
+
 #include <Arduino.h>
+#include <PubSubClient.h>
+#include <TablooSetup.h>
 
-#include <WiFi.h>
-//#include <ezTime.h>   // Search for "ezTime" in the Arduino Library manager: https://github.com/ropg/ezTime
-#include <HTTPClient.h>
+#define MQTT_CLIENT_ID_MASK "tc_%s"
+#define MQTT_SETUPSTRING_MAXLENGTH 255
+const char* MQTT_TOPIC_TABLE_MASK = "tabloo/stops/%s/table";
+const char* MQTT_TOPIC_SENSORS_LIST_MASK = "tabloo/stops/%s/sensors";
+const char* MQTT_TOPIC_TASKS_QUEUE_MASK = "tabloo/stops/%s/tasks";
+const char* MQTT_TOPIC_OUTPUT_MASK = "tabloo/stops/%s/output";
 
-//#define WIFI_SSID "Tartu Kolledž"
-//#define WIFI_PASS "..."
+char* mqtt_client_id;
+char* stop_code;
+char* mqtt_topic_table;
+char* mqtt_topic_sensors_list;
+char* mqtt_topic_tasks_queue;
+char* mqtt_topic_output;
 
-#define HTTP_SERVER "https://dev.intellisoft.ee/tabloo/ask/?c="
+PubSubClient  mqtt(client);
+uint32_t lastReconnectAttempt = 0;
 
-//HTTP: See https://randomnerdtutorials.com/esp32-http-get-post-arduino/
 
-/**
- * Start WiFi connection with given SSID and password
- */
-bool startConnection(const char* ssid, const char* password)
-{
-    if(ssid == nullptr)
-    {
-        Serial.print("Wifi SSID not given");
-        return false;
-    }
-    Serial.print("WiFi: Connecting to ");
-    Serial.print(ssid);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
 
-    //TODO do something with hardcoded timeout
-    unsigned long wifiConnectionTimeout = millis() + 10000;
+void mqtt_callback(char* topic, byte* payload, unsigned int len) {
+    log_v("Message arrived: topic: '%s', payload: '%s'", topic, payload);
 
-    while (WiFi.status() != WL_CONNECTED) {
-        Serial.print(".");
-        if(millis() > wifiConnectionTimeout)
-        {
-            Serial.println(" failed");
-            return false;
-        }
-        delay(500);
-    }
-
-    Serial.println("\nWiFi connected");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    return true;
+    // Only proceed if incoming message's topic matches
+    /*
+    if (String(topic) == topicLed) {
+        ledStatus = !ledStatus;
+        digitalWrite(LED_PIN, ledStatus);
+        mqtt.publish(topicLedStatus, ledStatus ? "1" : "0");
+    }*/
 }
 
-/**
- * Get the data from server
- * @param stopId null terminated c string, Bus stop ID from GTFS database, for example 7820161-1
- * @param uploadData sensors data to upload
- * @param uploadDataSize sensors data size
- * @param data address of buffer, where fetched data will be copied
- * @param dataSize size of data fetched
- * @return true if succeeded
- */
-bool fetchData(const char* stopId, char* uploadData, size_t& uploadDataSize, char*& data, size_t& dataSize){
 
-    if(WiFi.status() != WL_CONNECTED)
-    {
-        Serial.println("No Wifi connection. Can not fetch");
+inline void initMaskedVariable(char*& maskedVar, const char* mask) {
+    char buffer[MQTT_SETUPSTRING_MAXLENGTH];
+    size_t n;
+    n = sprintf(buffer, mask, stop_code);
+    if(n >= MQTT_SETUPSTRING_MAXLENGTH || n < 0) 
+        throw 1;
+    maskedVar = new char[n + 1];
+    memcpy(maskedVar, buffer, n);
+    maskedVar[n] = 0;
+    log_v("%s >> %s (%d bytes)", mask, maskedVar, n);
+}
+
+void mqtt_load_setup() {
+    try{
+    log_v("Loading setup");
+    //TODO get client id, stop id
+    stop_code = setup_getStringValue(SETUP_KEY_STOP_CODE);
+    log_i("Stop code = '%s'", stop_code);
+    if(strlen(stop_code)) {
+        initMaskedVariable(mqtt_client_id, MQTT_CLIENT_ID_MASK);
+        initMaskedVariable(mqtt_topic_table, MQTT_TOPIC_TABLE_MASK);
+        initMaskedVariable(mqtt_topic_sensors_list, MQTT_TOPIC_SENSORS_LIST_MASK);
+        initMaskedVariable(mqtt_topic_tasks_queue, MQTT_TOPIC_TASKS_QUEUE_MASK);
+        initMaskedVariable(mqtt_topic_output, MQTT_TOPIC_OUTPUT_MASK);
+    }
+    } catch (int i) {
+        log_e("Setup load failed");
+        log_i("Fix stop code in setup and restart");
+        *stop_code = 0;
+    }
+
+}
+
+boolean mqtt_connect() {
+    log_v("Starting connection");
+    if(!strlen(stop_code)) {
+        log_e("No stop code in setup!");
+        log_i("Provide stop code and restart to connect to MQTT broker");
+    }
+    ensureConnected();
+    log_v("Connecting to %s as %s : %s", MQTT_BROKER, MQTT_USER, (strlen(MQTT_PASS) ? "**PASS_NOT_SET**" : "**PASS_SET**"));
+    // Connect to MQTT Broker
+    //boolean status = mqtt.connect(mqtt_client_id);
+    boolean status = mqtt.connect(mqtt_client_id, MQTT_USER, MQTT_PASS);
+
+    if (status == false) {
+        log_e("MQTT connect failed. Client state %d", mqtt.state());
         return false;
     }
-
-    size_t sl = strlen(HTTP_SERVER);
-    char* url = new char[sl + strlen(stopId) + 1];
-    memcpy(url, HTTP_SERVER, sl);
-    strcpy(url + sl, stopId);
-
-    bool ret = false;
-
-    if(data != nullptr)
-        delete[] data;
-
-    Serial.print("URL: ");
-    Serial.println(url);
-
-    HTTPClient http;
-    http.setUserAgent("Tabloo v0.1");
-    http.begin(url);
-  
-    //int httpResponseCode = http.GET();
-
-    int httpResponseCode = http.POST((uint8_t*)uploadData, uploadDataSize);
-
-    if (httpResponseCode > 0) {
-        String sPayload = http.getString();
-        dataSize = sPayload.length();
-        data = new char[dataSize];
-        memcpy(data, sPayload.c_str(), dataSize);
-
-        ret = true;
-
-        Serial.print("HTTP Response code: ");
-        Serial.println(httpResponseCode);
-        Serial.print("Size: ");
-        Serial.println(dataSize);
-        Serial.println("-------------");
-        for(size_t i = 0; i < dataSize; i++)
-        {
-            Serial.print(i);
-            Serial.print(":");
-            Serial.print(data[i], HEX);
-            Serial.print("\t");
-        }
-        Serial.println("\n-------------");
-    }
-    else {
-        Serial.print("Error code: ");
-        Serial.println(httpResponseCode);
-    }
-
-    // Free resources
-    delete url;
-
-    http.end();
-    return ret;
+    log_v("MQTT connect successfull");
+    //TODO subscribe to topics
+    //mqtt.publish(mqtt_topic_init, "device started");
+    mqtt.subscribe(mqtt_topic_table);
+    mqtt.subscribe(mqtt_topic_sensors_list);
+    log_v("subscribed to MQTT topics");
+    return mqtt.connected();
 }
+
+
+void mqtt_start() {
+
+    mqtt_load_setup();
+
+
+
+    log_v("Start MQTT: broker %s : %d", MQTT_BROKER, MQTT_PORT);
+    mqtt.setServer(MQTT_BROKER, MQTT_PORT);
+    mqtt.setCallback(mqtt_callback);
+
+    mqtt_connect();
+}
+
+void mqtt_loop() {
+    if (!mqtt.connected()) {
+
+        // Reconnect every 10 seconds
+        uint32_t t = millis();
+        if (t - lastReconnectAttempt > 10000L) {
+            lastReconnectAttempt = t;
+            log_v("MQTT not connected, reconnecting");
+            if (mqtt_connect())
+                lastReconnectAttempt = 0;
+        }
+        delay(100);
+        return;
+    } else {
+        mqtt.loop();
+    }
+}
+
+
+#endif

@@ -21,6 +21,10 @@ Preferences preferences;
 #define SETUP_TIMEOUT_PAUSE 30000
 #endif
 
+#ifndef SETUP_NAME
+#define SETUP_NAME "tabloo"
+#endif
+
 boolean setupState = false;
 boolean setupLedOn = false;
 unsigned long setupBlinkTimer = 0;
@@ -71,10 +75,18 @@ const char *SETUP_POSSIBLE_KEYS[] = {
 
 char setupValue[256] = {0};
 
-char* readStringValue(const char* key) {
+char* setup_readStringValue(const char* key) {
     size_t l = preferences.getString(key, setupValue, 255);
     setupValue[l] = 0;
     return setupValue;
+}
+
+char* setup_getStringValue(const char* key) {
+    size_t l = preferences.getString(key, setupValue, 255);
+    setupValue[l] = 0;
+    char* ret = new char[l + 1];
+    memcpy(ret, setupValue, l + 1);
+    return ret;
 }
 
 
@@ -104,7 +116,7 @@ void processCommand(char *command)
                 Serial.print("**UNDEFINED**");
             else
             {
-                char* value = readStringValue(key);
+                char* value = setup_readStringValue(key);
                 Serial.printf("'%s'", value);
             }
             Serial.println("");
@@ -156,26 +168,32 @@ void processCommand(char *command)
         if(t == PT_INVALID)
             log_e("nothing saved for '%s'", arg1);
         else
-            log_i("retrieved from preferencies: '%s'", readStringValue(arg1));
+            log_i("retrieved from preferencies: '%s'", setup_readStringValue(arg1));
     }
 }
 
 SerialInput serialInput(processCommand);
 
-void setup_setup()
+void setup_start()
 {
+    log_v("Setup button pin: %d, LED pin: %d", SETUP_BUTTON_PIN, SETUP_LED_PIN);
+    log_v("Preferencies name: '%s'", SETUP_NAME);
+
     pinMode(SETUP_BUTTON_PIN, INPUT_PULLUP);
     pinMode(SETUP_LED_PIN, OUTPUT);
+    preferences.begin(SETUP_NAME, false);
 }
 
-void loop_setup()
+void setup_loop()
 {
     unsigned long t = millis();
-    if (!setupState && digitalRead(SETUP_BUTTON_PIN) == LOW)
-    {
-        log_v("Enter setup mode");
-        setupState = true;
-        resetSetupIdleTimer();
+    if(digitalRead(SETUP_BUTTON_PIN) == LOW) {
+        if (!setupState)
+        {
+            log_v("Enter setup mode");
+            setupState = true;
+            resetSetupIdleTimer();
+        }
     }
 
     if (setupState)

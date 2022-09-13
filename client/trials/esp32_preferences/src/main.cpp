@@ -5,7 +5,7 @@
 void setup() {
     Serial.begin(115200);
 
-    setup_setup();
+    setup_start();
 
     log_v("startup");
     Serial.println();
@@ -21,5 +21,5 @@ void setup() {
 }
 
 void loop() {
-    loop_setup();
+    setup_loop();
 }
