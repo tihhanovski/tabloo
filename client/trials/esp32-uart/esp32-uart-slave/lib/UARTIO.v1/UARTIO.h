@@ -110,11 +110,6 @@ public:
                 b2 = port.read();
                 dbgOutputHex(b2);
 
-                //Serial.print(" {b1 = ");
-                //dbgOutputHex(b1);
-                //Serial.print("; b2 = ");
-                //dbgOutputHex(b2);
-                //Serial.print("}\n");
                 if((b1 == UARTIO_ESC) && (b2 != UARTIO_ESC)) {
                     // got ESC and it is not escaped
                     msg.type = b2;

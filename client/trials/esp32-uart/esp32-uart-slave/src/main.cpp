@@ -4,11 +4,20 @@
 #define UARTIO_DEBUG true
 
 #include <UARTIO.h>
+#include <UARTTransport.h>
 
 HardwareSerial SerialPort(2); // use UART2
 UARTIO io(SerialPort);
+UARTTransport transport(io);
 
 boolean b = false;
+
+void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
+    log_i("Received %d bytes, type=%d: '%s'", msgLength, type, msg);
+    delete msg;
+    b = !b;
+    digitalWrite(2, b);
+}
 
 void setup()
 {
@@ -17,8 +26,10 @@ void setup()
     delay(1000);
     Serial.println("UART slave:");
     pinMode(2, OUTPUT);
+    transport.setOnMessageReceived(onMessageReceived);
 }
 
+/*
 template <class T>
 void readNumber(T &val) {
     uint8_t i = sizeof(val);
@@ -34,30 +45,10 @@ void readNumber(T &val) {
         }
     }
 }
+*/
 
 void loop()
 {
-    if (SerialPort.available())
-    {
-        UARTIO_Message msg;
-        unsigned long l = millis();
-        //char* txt = io.read();
-
-        io.readMessage(msg);
-
-        l = millis() - l;
-
-        log_i("Received %d bytes in %d msec: CRC32=%d", msg.length, l, msg.crc32);
-
-        delete msg.body;
-
-        b = !b;
-
-        digitalWrite(2, b);
-
-
-
-    } else {
-        delay(200);
-    }
+    transport.loop();
+    delay(200);
 }

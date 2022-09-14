@@ -27,6 +27,8 @@
 #include <HardwareSerial.h>
 #include <UARTIO.h>
 
+#include <TablooGeneral.h>
+
 HardwareSerial SerialPort(2); // use UART2
 UARTIO io(SerialPort);
 
@@ -118,13 +120,12 @@ Marquees scrolls;           // Marquees collection
 #endif
 
 void displayError(const char* msg) {
-  Serial.print("ERROR! ");
-  Serial.println(msg);
-  #if MATRIX_HUB75_ENABLED
-  scrolls.clear();
-  display->fillRect(0, 0, display->width(), display->height(), black);
-  scrolls.add(new Marquee(msg, display, 0, 0, display->width(), 8, 300, black));
-  #endif
+    log_i("Display error '%s'", msg);
+    #if MATRIX_HUB75_ENABLED
+    scrolls.clear();
+    display->fillRect(0, 0, display->width(), display->height(), black);
+    scrolls.add(new Marquee(msg, display, 0, 0, display->width(), 8, 300, black));
+    #endif
 }
 
 char* data;                 // Buffer for data retrieved from server
@@ -140,7 +141,7 @@ unsigned long timeDelta;    // Difference (in msec) between microcontroller mill
  * @param s seconds (0 - 59)
  */
 void setTime(uint8_t h, uint8_t m, uint8_t s) {
-  timeDelta = 1000 * (h * 3600 + m * 60 + s) - millis();
+    timeDelta = 1000 * (h * 3600 + m * 60 + s) - millis();
 }
 
 
@@ -483,41 +484,55 @@ unsigned long nextDhtPollingTime = 0;
 bool b = false;
 
 void loop() {
+    if(startSuccessfull)
+    {
+        #if MATRIX_HUB75_ENABLED
+        scrolls.loop();
+        waiting_times_show();
+        clock_show();
+        #endif
+    }
 
-  if(startSuccessfull)
-  {
-    #if MATRIX_HUB75_ENABLED
-    scrolls.loop();
-    waiting_times_show();
-    //display_dht();
-    clock_show();
-    #endif
+    if (SerialPort.available())
+    {
+        log_v("Serial available");
+        unsigned long l = millis();
+        UARTIO_Message msg;
+        io.readMessage(msg);
+        l = millis() - l;
+        log_v("Message (%d bytes) received in %d msec", msg.length, l);
 
-    //processExternalSensors();
-  }
+        //Draw rectangle to indicate that data is received
+        display->drawRect(0, 0, display->width(), display->height(), red);
+        delay(500);
 
-  if (SerialPort.available())
-  {
+        //TODO better message type processing
+        /* First byte in message is type:
+            0 - 
+            1 - timetable
+            2 - current time
+            3 - command
+         */
 
-    unsigned long l = millis();
+        log_v("Received type %d", *(msg.body));
 
-    UARTIO_Message msg;
-    io.readMessage(msg);
-    l = millis() - l;
-    Serial.print("Received in ");
-    Serial.println(l);
+        if(*data == UART_PACKET_TYPE_TIMETABLE) {
+            log_v("timetable");
+            loadData(msg.body + 1, msg.length - 1);
+        }
 
-    display->drawRect(0, 0, display->width(), display->height(), red);
-    delay(500);
+        if(*data == UART_PACKET_TYPE_CURRENTTIME) {
+            log_v("current time");
+            setTime(*(msg.body + 1), *(msg.body + 2), *(msg.body + 3));
+        }
 
-    loadData(msg.body, msg.length);
-    delete msg.body;
 
-    b = !b;
+        delete msg.body;
 
-    digitalWrite(2, b);
-  }
+        b = !b;
+        digitalWrite(2, b);
+    }
 
-  serialInput.loop();
-  delay(50);
+    serialInput.loop();
+    delay(50);
 }

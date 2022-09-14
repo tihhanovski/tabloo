@@ -1,5 +1,8 @@
 // UART message delivery
 
+#ifndef _UARTIO_H_
+#define _UARTIO_H_
+
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <CRC32.h>
@@ -27,10 +30,10 @@
 
 class UARTIO_Message {
     public:
-        uint8_t type;
-        uint32_t crc32;
-        uint32_t length;
-        char* body;
+        uint8_t     type = UARTIO_TYPE_NONE;
+        uint32_t    crc32 = 0;
+        uint32_t    length = 0;
+        uint8_t*       body = nullptr;
 };
 
 class UARTIO {
@@ -68,7 +71,7 @@ class UARTIO {
         writeByte(msgType);
     }
 
-    void sendBody(const char* msg, uint32_t len) {
+    void sendBody(const uint8_t* msg, uint32_t len) {
         for(uint32_t i = 0; i < len; i++) {
             if(msg[i] == UARTIO_ESC)
                 writeByte(UARTIO_ESC);
@@ -176,13 +179,16 @@ class UARTIO {
             logToSerial("\n");
             return;
         }
-        msg.body = new char[msg.length + 1];
-        msg.body[msg.length] = 0;
+
+        if(msg.length > 0) {
+            msg.body = new uint8_t[msg.length + 1];
+            msg.body[msg.length] = 0;
+        }
         uint32_t i = 0;
         bool esc = false;
         while(i < msg.length)
             if(port.available()) {
-                char c = port.read();
+                uint8_t c = port.read();
                 logToSerialHex(c);
                 if(esc) {
                     //TODO throw exception?
@@ -205,7 +211,6 @@ class UARTIO {
                     i++;
                 }
             }
-
         logToSerial("]\n");
     }
 
@@ -213,7 +218,7 @@ class UARTIO {
         return receive(msg, 0);
     }
     
-    void writePacket(const char* msg, uint32_t len) {
+    void writePacket(const uint8_t* msg, uint32_t len) {
         uint32_t checksum = CRC32::calculate(msg, len);
 
         for(uint16_t retriesCount = 0; retriesCount < UARTIO_WRITE_RETRIES; retriesCount++) {
@@ -257,10 +262,10 @@ class UARTIO {
             logToSerial("\nchecksum rcvd: ");
             logToSerial(msg.crc32);
             if(msg.crc32 == checksum) {
-                logToSerial("\t Checksums OK");
+                logToSerial("\t Checksums OK\n");
                 return;
             } else
-                logToSerial("\n!!! Checksums different !!!");
+                logToSerial("\n!!! Checksums different !!!\n");
 
             delay(UARTIO_DELAY_BETWEEN_WRITE_RETRIES);
         }
@@ -272,34 +277,46 @@ class UARTIO {
 public:
     UARTIO(HardwareSerial& p) : port(p) {}
 
-    void write(const char* msg, uint32_t msgLength) {
+    int available() {
+        return port.available();
+    }
+
+    void write(const uint8_t* msg, uint32_t msgLength) {
         writePacket(msg, msgLength);
     }
 
-    void write(const char* msg) {
+    /*void write(const char* msg) {
         writePacket(msg, strlen(msg));
-    }
+    }*/
 
     void readMessage(UARTIO_Message& msg) {
         while(true) {
             receive(msg);
-
-            uint32_t checksum = CRC32::calculate(msg.body, msg.length);
-            writeAnswer(checksum);
-            if(checksum == msg.crc32)
-                return;
-            else {
-                logToSerial("!!!ERROR wrong CRC32\n");
-                delete msg.body;
+            switch(msg.type) {
+                case UARTIO_TYPE_MESSAGE: {
+                    uint32_t checksum = CRC32::calculate(msg.body, msg.length);
+                    writeAnswer(checksum);
+                    if(checksum == msg.crc32)
+                        return;
+                    else {
+                        logToSerial("!!!ERROR wrong CRC32\n");
+                        delete msg.body;
+                    }
+                    break;
+                }
+                default: {
+                    logToSerial("!!!ERROR wrong packet type ");
+                    logToSerial(msg.type);
+                }
             }
         }
     }
 
-    char* read() {
+    uint8_t* read() {
         UARTIO_Message msg;
         readMessage(msg);
         return msg.body;
     }
-
-
 };
+
+#endif

@@ -48,44 +48,56 @@ uint8_t temprature_sens_read();
 #endif
 uint8_t temprature_sens_read();
 
-unsigned long nextTimeRequest = 0;
 
 void onTimetableReceived(char* data, size_t dataSize) {
     log_v("got timetable, push to display");
+    char* packet = new char(dataSize + 1);
+    *packet = UART_PACKET_TYPE_TIMETABLE;
+    memcpy(packet + 1, data, dataSize);
     // push data as is to display
-    io.write(data, dataSize);
-    log_v("pushed %d bytes", dataSize);
+    io.write(packet, dataSize + 1);
+    delete packet;
+    log_v("pushed %d bytes", dataSize + 1);
 }
 
-void requestTime() {
+void sendTime(uint8_t h, uint8_t m, uint8_t s) {
+    char packet[4] = {UART_PACKET_TYPE_CURRENTTIME, h, m, s};
+    io.write(packet, 4);
+}
+
+unsigned long nextTimeSyncMillis = 0;
+void syncTime() {
 
     unsigned long t = millis();
-    if(nextTimeRequest > t)
+    if(nextTimeSyncMillis > t)
         return;
-    nextTimeRequest = t + 10000;
+    nextTimeSyncMillis = t + 100000;
     SimpleTime time = requestNetworkTime();
     t = millis() - t;
-    Serial.print("Time ");
-    Serial.println(format(time));
-    Serial.print("requested in ");
-    Serial.println(t);
-    SerialMon.println("--------");
+    log_v("Time %s requested in %d msec", format(time), t);
 
+    sendTime(time.hours, time.minutes, time.seconds);
+    log_v("Current time pushed to UARTIO");
 }
 
 void setup() {
     // UART
     SerialPort.begin(15200, SERIAL_8N1, 33, 32);
     delay(1000);
-  
+
+    sendTime(12, 34, 56);
+
     Serial.begin(115200);
     setup_start();
 
+    /*
     mqtt_onTimetableReceived = onTimetableReceived;
     
     startModem();
     ensureConnected();
     mqtt_start();
+    */
+
 
     //TODO requestTime();
 }
@@ -105,8 +117,14 @@ unsigned long cntTime = 0;
 
 void loop() {
 
+    sendTime(12, 34, 56);
+    delay(2000);
+
+    /*
     setup_loop();
     mqtt_loop();
+    syncTime();
+    */
 
     /*
     if(cntTime < millis()) {
