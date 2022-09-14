@@ -23,10 +23,12 @@
 
 #include <HardwareSerial.h>
 #include <UARTIO.h>
+#include <UARTTransport.h>
 #include <BusStopData.h>
 
 HardwareSerial SerialPort(2); // use UART2
 UARTIO io(SerialPort);
+UARTTransport uartt(io);
 //char *data;      // Buffer for data retrieved from server
 //size_t dataSize; // Size of data
 
@@ -50,19 +52,21 @@ uint8_t temprature_sens_read();
 
 
 void onTimetableReceived(char* data, size_t dataSize) {
-    log_v("got timetable, push to display");
-    char* packet = new char(dataSize + 1);
-    *packet = UART_PACKET_TYPE_TIMETABLE;
-    memcpy(packet + 1, data, dataSize);
-    // push data as is to display
-    io.write(packet, dataSize + 1);
-    delete packet;
-    log_v("pushed %d bytes", dataSize + 1);
+    log_v("got timetable, will send to display");
+    uartt.write(UART_PACKET_TYPE_TIMETABLE, (uint8_t*)data, dataSize);
+    log_v("sent %d bytes", dataSize);
 }
 
 void sendTime(uint8_t h, uint8_t m, uint8_t s) {
-    char packet[4] = {UART_PACKET_TYPE_CURRENTTIME, h, m, s};
-    io.write(packet, 4);
+    Serial.print("Sending time ");
+    Serial.print(h, HEX);
+    Serial.print(" : ");
+    Serial.print(m, HEX);
+    Serial.print(" : ");
+    Serial.print(s, HEX);
+    Serial.println(" : ");
+    uint8_t packet[3] = {h, m, s};
+    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, 3);
 }
 
 unsigned long nextTimeSyncMillis = 0;
@@ -90,13 +94,13 @@ void setup() {
     Serial.begin(115200);
     setup_start();
 
-    /*
+    /**/
     mqtt_onTimetableReceived = onTimetableReceived;
     
     startModem();
     ensureConnected();
     mqtt_start();
-    */
+    /**/
 
 
     //TODO requestTime();
@@ -117,14 +121,12 @@ unsigned long cntTime = 0;
 
 void loop() {
 
-    sendTime(12, 34, 56);
-    delay(2000);
+    //sendTime(12, 34, 56);
+    //delay(2000);
 
-    /*
     setup_loop();
     mqtt_loop();
     syncTime();
-    */
 
     /*
     if(cntTime < millis()) {
