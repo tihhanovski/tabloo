@@ -15,11 +15,8 @@
 
 // non standard UART pins, standard are 16, 17
 #define UARTIO_DEBUG true
-//#define UART_RX 33
-//#define UART_TX 32
-
-//#define UART_RX 16
-//#define UART_TX 17
+#define UART_RX 33
+#define UART_TX 32
 
 #include <HardwareSerial.h>
 #include <UARTIO.h>
@@ -29,13 +26,10 @@
 HardwareSerial SerialPort(2); // use UART2
 UARTIO io(SerialPort);
 UARTTransport uartt(io);
-//char *data;      // Buffer for data retrieved from server
-//size_t dataSize; // Size of data
-
 
 #include <Arduino.h>
-//#include <ArduinoHttpClient.h> //https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
 #include <TablooGeneral.h>
+#include <TablooTime.h>
 #include <TablooGSM.h>
 #include <TablooMQTT.h>
 #include <TablooSetup.h>
@@ -57,81 +51,50 @@ void onTimetableReceived(char* data, size_t dataSize) {
     log_v("sent %d bytes", dataSize);
 }
 
-void sendTime(uint8_t h, uint8_t m, uint8_t s) {
-    Serial.print("Sending time ");
-    Serial.print(h, HEX);
-    Serial.print(" : ");
-    Serial.print(m, HEX);
-    Serial.print(" : ");
-    Serial.print(s, HEX);
-    Serial.println(" : ");
-    uint8_t packet[3] = {h, m, s};
-    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, 3);
+void sendTime(SimpleDateTime dt) {
+    uint8_t packet[7] = {dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds, dt.offset};
+    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, 7);
 }
 
 unsigned long nextTimeSyncMillis = 0;
 void syncTime() {
 
+    // byte per field (year - 2000)
+    // y-m-d-h-m-s-z
+
     unsigned long t = millis();
     if(nextTimeSyncMillis > t)
         return;
     nextTimeSyncMillis = t + 100000;
-    SimpleTime time = requestNetworkTime();
+    SimpleDateTime time = requestNetworkDateTime();
     t = millis() - t;
     log_v("Time %s requested in %d msec", format(time), t);
 
-    sendTime(time.hours, time.minutes, time.seconds);
+    sendTime(time);
     log_v("Current time pushed to UARTIO");
 }
 
 void setup() {
     // UART
-    SerialPort.begin(15200, SERIAL_8N1, 33, 32);
+    SerialPort.begin(15200, SERIAL_8N1, UART_RX, UART_TX);
     delay(1000);
 
-    sendTime(12, 34, 56);
+    sendTime(SimpleDateTime());
 
     Serial.begin(115200);
     setup_start();
 
-    /**/
     mqtt_onTimetableReceived = onTimetableReceived;
     
     startModem();
     ensureConnected();
     mqtt_start();
-    /**/
-
-
-    //TODO requestTime();
-}
-
-void publishCount() {
-    /*
-    Serial.println("Will publish");
-    ensureConnected();
-    mqtt.publish(mqtt_topic_uptime, ((String)("") + millis()).c_str());
-    mqtt.publish(mqtt_topic_device_temp, ((String)("") + ((temprature_sens_read() - 32) / 1.8)).c_str());
-    mqtt.publish(mqtt_topic_signal, ((String)("") + modem.getSignalQuality()).c_str());
-    Serial.println("Published");
-    */
 }
 
 unsigned long cntTime = 0;
 
 void loop() {
-
-    //sendTime(12, 34, 56);
-    //delay(2000);
-
     setup_loop();
     mqtt_loop();
     syncTime();
-
-    /*
-    if(cntTime < millis()) {
-        publishCount();
-        cntTime = millis() + 2000;
-    }
-    */
 }

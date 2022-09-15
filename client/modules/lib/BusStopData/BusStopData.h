@@ -75,12 +75,13 @@ public:
      * @param lineIndex line index in data retrieved from server
      * @param h current time hours (0 - 23)
      * @param m current time minutes (0 - 59)
+     * @param dow day of week (0 - 6);
      * 
      * Find next bus arrival time for given line from timetable and return difference between it and current time in minutes.
      * If no next time found, use first time from timetable as next days time
      * TODO will produce wrong result if tomorrow times are different (for example weekend ws weekday schedule)
      */
-    uint16_t getWaitingTime(uint8_t lineIndex, uint8_t h, uint8_t m)
+    uint16_t getWaitingTime(uint8_t lineIndex, uint8_t h, uint8_t m, uint8_t dow)
     {
         uint16_t currentMin = h * 60 + m;               // Convert current time to minutes
 
