@@ -11,71 +11,76 @@
 #include <Arduino.h>
 
 class Marquee {
-  String  str;
-  MatrixPanel_I2S_DMA *display = nullptr;
+    String  str;
+    MatrixPanel_I2S_DMA *display = nullptr;
 
-  long strLength;
-  long widthInChars;
-  long pos = 0;
-  long charWidth = 6;
-  uint16_t background;
-  uint8_t x; 
-  uint8_t y;
-  uint8_t w;
-  uint8_t h;
+    long strLength;
+    long widthInChars;
+    long pos = 0;
+    long charWidth = 6;
+    uint16_t background;
+    uint8_t x; 
+    uint8_t y;
+    uint8_t w;
+    uint8_t h;
+    bool bHalfStep = false;
 
-  GFXcanvas1 *canvas;
+    GFXcanvas1 *canvas;
 
 public:
 
-  unsigned long nextScrollTime = 0;
-  unsigned long mspp = 1000;
+    unsigned long nextScrollTime = 0;
+    unsigned long mspp = 1000;
 
-  const char* getMessage()
-  {
-    return str.c_str();
-  }
-
-  Marquee(String msg, MatrixPanel_I2S_DMA *display, uint8_t x, uint8_t y, uint8_t w, uint8_t h, unsigned long msecPerPixels, uint16_t bg)
-  {
-    widthInChars = w / charWidth + 1;
-    str = "           " + msg;
-    strLength = str.length();
-    
-    this->display = display;
-    this->x = x;
-    this->y = y;
-    this->w = w;
-    this->h = h;
-    mspp = msecPerPixels;
-    background = bg;
-
-    canvas = new GFXcanvas1(w, h);
-  }
-
-  ~Marquee()
-  {
-    delete canvas;
-  }
-
-  void loop() {
-    long pp = pos / charWidth;
-    long lastPos = pp + widthInChars;
-    if(lastPos > strLength)
-      lastPos = strLength;
-    if(pp >= str.length())
+    const char* getMessage()
     {
-      pos = 0;
+        return str.c_str();
     }
 
-    canvas->fillScreen(background);
-    canvas->setCursor(- (pos % charWidth), 0);
-    canvas->print(str.substring(pp));
+    Marquee(String msg, MatrixPanel_I2S_DMA *display, uint8_t x, uint8_t y, uint8_t w, uint8_t h, unsigned long msecPerPixels, uint16_t bg)
+    {
+        widthInChars = w / charWidth + 1;
+        str = "           " + msg;
+        strLength = str.length();
+        
+        this->display = display;
+        this->x = x;
+        this->y = y;
+        this->w = w;
+        this->h = h;
+        mspp = msecPerPixels;
+        background = bg;
 
-    display->drawBitmap(x, y, canvas->getBuffer(), w, h, 65000, background);
+        canvas = new GFXcanvas1(w, h);
+    }
 
-    pos++;
-  }
+    ~Marquee()
+    {
+        delete canvas;
+    }
+
+    void loop() {
+        long pp = pos / charWidth;
+        long lastPos = pp + widthInChars;
+        if(lastPos > strLength)
+            lastPos = strLength;
+        if(pp >= str.length())
+        {
+            pos = 0;
+        }
+
+        //if(bHalfStep)
+        canvas->fillScreen(background);
+        canvas->setCursor(- (pos % charWidth), 0);
+        canvas->print(str.substring(pp));
+
+        display->drawBitmap(x, y, canvas->getBuffer(), w, h, 65000, background);
+
+        //if(!bHalfStep)
+        pos++;
+
+        bHalfStep = !bHalfStep;
+    }
 };
 
 struct MarqueeArrayItem{

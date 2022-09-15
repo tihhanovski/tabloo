@@ -84,6 +84,7 @@ public:
     uint16_t getWaitingTime(uint8_t lineIndex, uint8_t h, uint8_t m, uint8_t dow)
     {
         uint16_t currentMin = h * 60 + m;               // Convert current time to minutes
+        uint8_t dowMask = 1 << dow;
 
         #ifdef DEBUG_TIMETABLES
             Serial.print("Looking for next time ");
@@ -111,7 +112,7 @@ public:
                 Serial.print((uint8_t)*(p+2));
                 Serial.print("}\t");
             #endif
-            if(*(p + 2) == lineIndex) {                 // Check bus line index
+            if((*(p + 2) == lineIndex) && (*(p + 3) & dowMask)) {                 // Check bus line index and day of week mask
                 uint16_t t = (*p) * 60 + (*(p + 1));    // Calculate arrival time in minutes since midnight
                 #ifdef DEBUG_TIMETABLES
                     Serial.print(t);
@@ -130,7 +131,7 @@ public:
                 }
 
             }
-            p += 3;                                    // Jump to the next time in timetable
+            p += 4;                                    // Jump to the next time in timetable
         }
 
         #ifdef DEBUG_TIMETABLES

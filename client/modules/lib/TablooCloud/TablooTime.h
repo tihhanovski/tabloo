@@ -71,20 +71,4 @@ uint8_t getDayOfWeek() {
     return rtc.getDayofWeek();
 }
 
-/*
-
-unsigned long timeDelta;    // Difference (in msec) between microcontroller millis and actual current local time got from server
-
-void setTime(uint8_t h, uint8_t m, uint8_t s) {
-    timeDelta = 1000 * (h * 3600 + m * 60 + s) - millis();
-}
-
-void getCurrentHoursAndMinutes(uint8_t& h, uint8_t& m)
-{
-    unsigned long tt = (timeDelta + millis()) / 60000;
-    h = (tt / 60) % 24;
-    m = tt % 60;
-}
-*/
-
 #endif

@@ -12,9 +12,12 @@
 #define PANEL_RES_Y 32      // Number of pixels tall of each INDIVIDUAL panel module.
 #define PANEL_CHAIN 1       // Total number of panels chained one to another
 
+#define SAVED_TIMETABLE_FILE "/timetable.bin"
 
 
 #define UARTIO_DEBUG true
+#define UART_RX 33
+#define UART_TX 32
 
 #include <HardwareSerial.h>
 #include <UARTIO.h>
@@ -37,16 +40,35 @@ bool startSuccessfull = false;    // True if start was successfull
 
 #include "TablooMatrixPanel.h"
 
-char* data = nullptr;                 // Buffer for timetable data
+uint8_t* data = nullptr;                 // Buffer for timetable data
 size_t dataSize = 0;                  // Size of timetable data
 BusStopData timetable;                // Timetable object
 
+void clearData() {
+    if(data != nullptr) {
+        delete[] data;
+        data = nullptr;
+        dataSize = 0;
+    }
+}
+
 void loadData(uint8_t* msg, uint32_t size) {
+    clearData();
     dataSize = size;
-    data = new char[dataSize];
+    data = new uint8_t[dataSize];
     memcpy(data, msg, dataSize);
 
-    timetable.initialize(data);
+    File file = SPIFFS.open(SAVED_TIMETABLE_FILE, FILE_WRITE, true);
+    if(file) {
+        log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, file.available());
+
+        file.write(data, dataSize);
+        file.close();
+
+    } else
+        log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
+
+    timetable.initialize((char*)data);
     matrix_startScrolls(timetable);
     outputMemoryData();
 }
@@ -64,7 +86,7 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
             }
             log_v("Setting current time");
             setDateTime(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6]);
-            //setTime(msg[0], msg[1], msg[2]);
+            matrix_resetCurrentTime();
             break;
         case UART_PACKET_TYPE_TIMETABLE:
             log_v("TODO: timetable");
@@ -88,19 +110,28 @@ void setup() {
     Serial.begin(115200);
 
     // UART
-    SerialPort.begin(15200, SERIAL_8N1, 33, 32);
+    SerialPort.begin(15200, SERIAL_8N1, UART_RX, UART_TX);
     uartt.setOnMessageReceived(onMessageReceived);
-
-    // Start internal filesystem
-    // Settings (and more) is stored here
-    if(!SPIFFS.begin(true)){
-        Serial.println("SPIFFS Mount Failed");
-    }
-
     outputMemoryData();
-
     matrix_init(PANEL_RES_X, PANEL_RES_Y, PANEL_CHAIN);
     matrix_splashscreen();
+
+    // Start internal filesystem
+    if(SPIFFS.begin(true)){
+        File file = SPIFFS.open(SAVED_TIMETABLE_FILE);
+        if(file) {
+            log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, file.available());
+            dataSize = file.available();
+            data = new uint8_t[dataSize];
+            file.read(data, dataSize);
+            file.close();
+            log_v("Timetables data initialized from saved file");
+            timetable.initialize((char*)data);
+            matrix_startScrolls(timetable);
+        } else
+            log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
+    } else
+        log_e("SPIFFS mount failed!");
 
     startSuccessfull = true;
 }

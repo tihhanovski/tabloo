@@ -53,7 +53,7 @@ void matrix_startScrolls(BusStopData &timetable) {
             i * 8,  //TODO 
             display->width() - 24, 
             8, 
-            300, 
+            150, 
             black
             ));
     }
@@ -108,13 +108,19 @@ void matrix_init(uint16_t resX, uint16_t resY, uint8_t chain) {
     display->setTextColor(display->color444(15,15,15));
 }
 
-GFXcanvas1* cvsTimesToWait = nullptr;
 unsigned long nextTimeWait = 0;     // Time when waiting times will be calculated next time
 
+void matrix_resetCurrentTime() {
+    nextTimeWait = 0;
+}
+
+GFXcanvas1* cvsTimesToWait = nullptr;
 /**
  * Show times to wait for every line
  */
 void waiting_times_show(BusStopData& timetable) {
+    if(!timetable.lineCount)
+        return;
     unsigned long t = millis();
     if(cvsTimesToWait == nullptr)
         cvsTimesToWait = new GFXcanvas1(18, display->height() - 8);
@@ -130,8 +136,18 @@ void waiting_times_show(BusStopData& timetable) {
         cvsTimesToWait->fillRect(0, 0, 18, 24, 0);
         for(uint8_t i = 0; i < timetable.lineCount; i++) {
             // For every line
-            cvsTimesToWait->setCursor(0, i * 8);
-            cvsTimesToWait->print(timetable.getWaitingTime(i, h, m, dow));
+
+            uint16_t minutesToWait = timetable.getWaitingTime(i, h, m, dow);
+
+            int16_t bx, by;
+            uint16_t bw, bh;
+            char buf[5] = {0};
+            sprintf(buf, "%d", minutesToWait);
+            display->getTextBounds(String(buf), 0, 0, &bx, &by, &bw, &bh);
+            log_v("Width for %d is %d", minutesToWait, bw - bx);
+
+            cvsTimesToWait->setCursor(18 - bw + bx, i * 8);
+            cvsTimesToWait->print(minutesToWait);
         }
     }
     display->drawBitmap(display->width() - 18, 0, cvsTimesToWait->getBuffer(), 18, 24, display->color444(15,0,0), 0);
