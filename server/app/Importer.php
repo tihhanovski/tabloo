@@ -58,8 +58,8 @@ class Importer {
             $stc = count($stopTimes);
 
             $timetableOutput =
-                chr((int)date("H")) . chr((int)date("i")) . chr((int)date("s"))       //current time in seconds - 3 bytes
-                . chr(count($lineNames))                                              //count of lines
+                //chr((int)date("H")) . chr((int)date("i")) . chr((int)date("s"))       //current time in seconds - 3 bytes
+                  chr(count($lineNames))                                              //count of lines
                 . implode($lineNames, "")                                             //line names
                 . chr(floor($stc / 256)) . chr($stc % 256)                            //count of times
                 . implode($stopTimes, "");                                            //times
