@@ -18,6 +18,7 @@
 #define UARTIO_DEBUG true
 #define UART_RX 33
 #define UART_TX 32
+#define UART_SPEED 9600 //15200
 
 #include <HardwareSerial.h>
 #include <UARTIO.h>
@@ -75,6 +76,29 @@ void loadData(uint8_t* msg, uint32_t size) {
 
 boolean bLedOn = false;
 
+const char* CMD_REBOOT = "display reboot";
+
+void executeCommand(uint8_t* msg, uint32_t msgLength) {
+    uint8_t* cmdText = new uint8_t[msgLength + 1];
+    memcpy(cmdText, msg, msgLength);
+    cmdText[msgLength] = 0;
+    log_v("command %s", cmdText);
+
+    display->fillRect(0, 24, 64, 8, COLOR_BLACK);
+    display->setTextColor(COLOR_RED);
+    display->setCursor(0, 24);
+    String s = String((char*)cmdText);
+    display->print(s);
+    display->drawRect(0, 24, 64, 8, COLOR_RED);
+
+    if(!strcmp((const char*)cmdText, CMD_REBOOT)) {
+        log_i("will reboot");
+        ESP.restart();
+    }
+
+
+}
+
 void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
     log_i("Received %d bytes, type=%d: '%s'", msgLength, type, msg);
 
@@ -93,7 +117,8 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
             loadData(msg, msgLength);
             break;
         case UART_PACKET_TYPE_COMMAND:
-            log_v("TODO: command");
+            //will assume that cmd is c string
+            executeCommand(msg, msgLength);
             break;
         default:
             log_e("Received unknown packet with type=%d", type);
@@ -110,7 +135,7 @@ void setup() {
     Serial.begin(115200);
 
     // UART
-    SerialPort.begin(15200, SERIAL_8N1, UART_RX, UART_TX);
+    SerialPort.begin(UART_SPEED, SERIAL_8N1, UART_RX, UART_TX);
     uartt.setOnMessageReceived(onMessageReceived);
     outputMemoryData();
     matrix_init(PANEL_RES_X, PANEL_RES_Y, PANEL_CHAIN);

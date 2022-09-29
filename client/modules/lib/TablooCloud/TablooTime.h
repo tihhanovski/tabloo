@@ -41,16 +41,28 @@ String format(SimpleDateTime t) {
     return (String)("") + t.hours + ":" + t.minutes + ":" + t.seconds;
 }
 
-
 ESP32Time rtc(TABLOOTIME_DEFAULT_OFFSET);
 
+bool rtc_time_initialized = false;
+
+bool isTimeInitialized() {
+    return rtc_time_initialized;
+}
 
 // TODO: Bad code, read about timezones and write better
 void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second) {
+
+    log_v("setDateTime %d-%d-%d %d:%d:%d", year, month, day, hour, minute, second);
+    if(year <= 4) {
+        log_e("Invalid time detected. Skip RTC initialization");
+        return;
+    }
+
     rtc.setTime(second, minute, hour, day, month, 2000 + year);
     unsigned long le = rtc.getLocalEpoch();
     le = le - rtc.offset;
     rtc.setTime(le);
+    rtc_time_initialized = true;
 }
 
 void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, uint8_t offset) {

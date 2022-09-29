@@ -25,7 +25,7 @@ class Marquee {
     uint8_t h;
     bool bHalfStep = false;
 
-    GFXcanvas1 *canvas;
+    GFXcanvas1 *canvas, *canvas2;
 
 public:
 
@@ -51,12 +51,14 @@ public:
         mspp = msecPerPixels;
         background = bg;
 
-        canvas = new GFXcanvas1(w, h);
+        canvas = new GFXcanvas1(w + 8, h);
+        canvas2 = new GFXcanvas1(w, h);
     }
 
     ~Marquee()
     {
         delete canvas;
+        delete canvas2;
     }
 
     void loop() {
@@ -74,7 +76,10 @@ public:
         canvas->setCursor(- (pos % charWidth), 0);
         canvas->print(str.substring(pp));
 
-        display->drawBitmap(x, y, canvas->getBuffer(), w, h, 65000, background);
+        canvas2->drawBitmap(0, 0, canvas->getBuffer(), w + 8, h, 65000, background);
+
+        display->drawBitmap(x, y, canvas2->getBuffer(), w, h, 65000, background);
+        display->drawRect(x, y, w, h, display->color444(0, 10, 15));
 
         //if(!bHalfStep)
         pos++;
