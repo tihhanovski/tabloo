@@ -1,3 +1,8 @@
+// Sample code for https://www.aliexpress.com/item/4000456922720.html?spm=a2g0s.12269583.0.0.75154f39xjmZMx
+// Based on example from TinyGSM by Volodymyr Shymanskyy 
+// https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
+// 
+
 /**
  * Tabloo - opensource bus stop display
  * Connection code for GSM 
@@ -31,8 +36,6 @@
 #define MODEM_POWER_ON       23
 #define MODEM_TX             27
 #define MODEM_RX             26
-#define I2C_SDA              21
-#define I2C_SCL              22
 
 // Set serial for debug console (to Serial Monitor, default speed 115200)
 #define SerialMon Serial
@@ -43,7 +46,6 @@
 #define TINY_GSM_MODEM_SIM800      // Modem is SIM800
 #define TINY_GSM_RX_BUFFER   1024  // Set RX buffer to 1Kb
 
-#include <Wire.h>
 #include <TinyGsmClient.h>
 
 #ifdef DUMP_AT_COMMANDS
@@ -55,8 +57,11 @@
 #endif
 
 
+//#define I2C_SDA              21
+//#define I2C_SCL              22
+//#include <Wire.h>
 // I2C for SIM800 (to keep it running when powered from battery)
-TwoWire I2CPower = TwoWire(0);
+//TwoWire I2CPower = TwoWire(0);
 
 // TinyGSM Client for Internet connection
 TinyGsmClientSecure client(modem);
@@ -64,6 +69,7 @@ TinyGsmClientSecure client(modem);
 #define IP5306_ADDR          0x75
 #define IP5306_REG_SYS_CTL0  0x00
 
+/*
 bool setPowerBoostKeepOn(int en){
     I2CPower.beginTransmission(IP5306_ADDR);
     I2CPower.write(IP5306_REG_SYS_CTL0);
@@ -73,7 +79,7 @@ bool setPowerBoostKeepOn(int en){
         I2CPower.write(0x35); // 0x37 is default reg value
     }
     return I2CPower.endTransmission() == 0;
-}
+}*/
 
 void startModem() {
     // Start I2C communication
@@ -99,8 +105,12 @@ void startModem() {
     // Restart SIM800 module, it takes quite some time
     // To skip it, call init() instead of restart()
     log_i("Initializing modem...");
+    unsigned long t = millis();
+    //modem.restart();
     modem.restart();
     // use modem.init() if you don't need the complete restart
+    t = millis() - t;
+    log_v("Restarted modem in %d", t);
 
     #if CORE_DEBUG_LEVEL == 5
     String modemInfo = modem.getModemInfo();
@@ -165,7 +175,12 @@ SimpleDateTime requestNetworkDateTime() {
             &hour3, &min3, &sec3,
             &timezone)) 
         {
-            log_v("Year: %d-%d-%d %d:%d:%d %.1f", year3, month3, day3, hour3, min3, sec3, timezone);
+            log_v("Time: %d-%d-%d %d:%d:%d %.1f", year3, month3, day3, hour3, min3, sec3, timezone);
+
+            if(year3 <= 2004 && month3 == 1 && day3 == 1) {
+                //TODO !!
+                log_e("Wrong datetime");
+            }
 
             ret.hours = hour3;
             ret.minutes = min3;
@@ -187,9 +202,9 @@ SimpleDateTime requestNetworkDateTime() {
 boolean ensureConnected() {
     if (!modem.isNetworkConnected()) {
         log_i("Network disconnected");
-        if (!modem.waitForNetwork(180000L, true)) {
+        if (!modem.waitForNetwork(120000L, true)) {  //180000L
             log_w("Network connection failed");
-            delay(10000);
+            delay(1000);    ///10000
             return false;
         }
         if (modem.isNetworkConnected()) {
@@ -215,7 +230,7 @@ boolean ensureConnected() {
 
         if (!success) {
             log_w("GPRS disconnection failed");
-            delay(10000);
+            delay(1000);   //10000
             return false;
         }
         if (modem.isGprsConnected()) { 

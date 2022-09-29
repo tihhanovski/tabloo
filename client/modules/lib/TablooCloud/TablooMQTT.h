@@ -33,12 +33,20 @@ PubSubClient  mqtt(client);
 uint32_t lastReconnectAttempt = 0;
 
 void (*mqtt_onTimetableReceived)(char* data, size_t len) = nullptr;
+void (*mqtt_onCommandReceived)(char* data, size_t len) = nullptr;
+void (*mqtt_onSensorsListReceived)(char* data, size_t len) = nullptr;
 
 void mqtt_callback(char* topic, byte* payload, unsigned int len) {
     log_v("Message on topic: '%s', %d bytes", topic, len);
 
     if(!strcmp(topic, mqtt_topic_table) && mqtt_onTimetableReceived != nullptr)
         mqtt_onTimetableReceived((char*)payload, len);
+
+    if(!strcmp(topic, mqtt_topic_tasks_queue) && mqtt_onCommandReceived != nullptr)
+        mqtt_onCommandReceived((char*)payload, len);
+
+    if(!strcmp(topic, mqtt_topic_sensors_list) && mqtt_onSensorsListReceived != nullptr)
+        mqtt_onSensorsListReceived((char*)payload, len);
 
     // Only proceed if incoming message's topic matches
     /*
@@ -89,7 +97,10 @@ boolean mqtt_connect() {
         log_e("No stop code in setup!");
         log_i("Provide stop code and restart to connect to MQTT broker");
     }
-    ensureConnected();
+    if(!ensureConnected()) {
+        log_e("No connection");
+        return false;
+    }
     log_v("Connecting to %s as %s : %s", MQTT_BROKER, MQTT_USER, (strlen(MQTT_PASS) ? "**PASS_SET**" : "**PASS_NOT_SET**"));
     // Connect to MQTT Broker
     //boolean status = mqtt.connect(mqtt_client_id);
@@ -104,6 +115,7 @@ boolean mqtt_connect() {
     //mqtt.publish(mqtt_topic_init, "device started");
     mqtt.subscribe(mqtt_topic_table);
     mqtt.subscribe(mqtt_topic_sensors_list);
+    mqtt.subscribe(mqtt_topic_tasks_queue);
     log_v("subscribed to MQTT topics");
     return mqtt.connected();
 }

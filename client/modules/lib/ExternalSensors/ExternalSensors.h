@@ -18,6 +18,9 @@
 #include <freertos/stream_buffer.h>
 #include <freertos/message_buffer.h>
 
+MessageBufferHandle_t xMessageBuffer;
+MessageBufferHandle_t xSensorsList;
+
 // default I2C pins
 #define SDA_PIN 21
 #define SCL_PIN 22
@@ -40,7 +43,7 @@
 long unsigned int nextPollTime = 0;
 
 TaskHandle_t task1;
-MessageBufferHandle_t msgs, bhSensors;
+//MessageBufferHandle_t msgs, bhSensors;
 
 struct SensorRecord {
     uint8_t address;
@@ -54,9 +57,7 @@ uint8_t sensors[SENSORS_MAX_COUNT];
 size_t sensorsCount = 0;
 
 void readSlave(byte addr) {
-    Serial.print("Slave ");
-    Serial.print(addr);
-    Serial.print(": ");
+    log_v("Slave %d :", addr);
     // first create a WireSlaveRequest object
     // first argument is the Wire bus the slave is attached to (Wire or Wire1)
     WireSlaveRequest slaveReq(Wire, addr, MAX_SLAVE_RESPONSE_LENGTH);
@@ -74,17 +75,21 @@ void readSlave(byte addr) {
     if (success) {
         sensorData.address = addr;
         uint32_t i = 0;
+        Serial.print("[");
         while (1 < slaveReq.available()) {  // loop through all but the last byte
             char c = slaveReq.read();       // receive byte as a character
             Serial.print(c);                // print the character
             if(i < SLAVEDATA_BUFFER_SIZE)
                 sensorData.data[i++] = c;
-            else 
-                Serial.println("!!!ERROR!!! Too much data from slave");
+            else {
+                log_v("!!!ERROR!!! Too many bytes from slave");
+                break;
+            }
         }
+        Serial.println("]");
         sensorData.dataSize = i;
 
-        xMessageBufferSend( msgs,
+        xMessageBufferSend( xMessageBuffer,
                             ( void * ) &sensorData,
                             i + 5,
                             pdMS_TO_TICKS(500) );
@@ -92,82 +97,65 @@ void readSlave(byte addr) {
         
     }
     else {
-        Serial.println(slaveReq.lastStatusToString());
+        log_v("Error reading from slave: %s", slaveReq.lastStatusToString());
     }
 }
 
+void saveSensorsList(char*& data, size_t dataSize) {
+    //TODO - this may fail. Check docs
+    xMessageBufferReset(xSensorsList);  // Try to reset buffer
+
+    //First byte is sensors count
+    //data + 1 points to start of sensors list
+    log_v("Saving list of sensors:");
+    for(char* i = data + 1; i < data + dataSize; i++)
+        log_v("  sensor addr %d", *i);
+
+    xMessageBufferSend( xSensorsList,       // put sensors data to buffer
+        ( void * ) (data + 1),              // pointer to sensors addr list (byte per sensor)
+        dataSize - 1,                       // sensors count
+        pdMS_TO_TICKS(500) );               // block for 500 msec max
+    log_v("sent %d bytes", dataSize - 1);
+}
 
 void processExternalSensors() {
     if(nextPollTime > millis())
         return;
+    log_v("start");
     nextPollTime = millis() + EXTERNAL_SENSORS_POLL_INTERVAL;
 
-    Serial.print("sensorsTask running on core ");
-    Serial.println(xPortGetCoreID());
-
-    // get list of slaves
-    /*
-    // modified code by Rui Santos 
-    // see https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/
-    byte error, address;
-    int nDevices;
-    Serial.print("Scanning: ");
-    nDevices = 0;
-    for(address = 1; address < 127; address++ ) {
-        Wire.beginTransmission(address);
-        error = Wire.endTransmission();
-        if (error == 0) {
-            if (address<16) {
-                Serial.print("0");
-            }
-            Serial.print(address,HEX);
-            Serial.print("; ");
-            nDevices++;
-        }
-        else if (error == 4) {
-            Serial.print("ERROR: 0x");
-            if (address < 16) {
-                Serial.print("0");
-            }
-            Serial.print(address,HEX);
-        }    
-    }
-    if (nDevices == 0)
-        Serial.println("No I2C devices found");
-    else
-        Serial.println("");
-    */
+    log_v("sensorsTask running on core %d", xPortGetCoreID());
  
     // update list of sensors from message buffer if buffer is not empty
     // while instead of if just to make sure we read last sensors config
-    if(!xMessageBufferIsEmpty(bhSensors)) {
-        Serial.println("Sensors buffer is not empty, update");
+    if(!xMessageBufferIsEmpty(xSensorsList)) {
+        log_v("Sensors buffer is not empty, update");
         sensorsCount = xMessageBufferReceive(
-            bhSensors,
+            xSensorsList,
             (void *)sensors,
             SENSORS_MAX_COUNT,
             pdMS_TO_TICKS(100));
     } else
-        Serial.println("Sensors buffer is empty, use old list");
+        log_v("Sensors buffer is empty, use old list");
 
-    Serial.print("Sensors count ");
-    Serial.println(sensorsCount);
+    log_v("Sensors count %d", sensorsCount);
 
     //Read slaves
-    uint8_t* p = sensors;
-    for(size_t i = 0; i < sensorsCount; i++)
-        readSlave(*(p++));
+    if(sensorsCount) {
+        log_v("Reading data from sensors:");
+        uint8_t* p = sensors;
+        for(size_t i = 0; i < sensorsCount; i++)
+            readSlave(*(p++));
+    }
 
-    //Wire.end();
+
+    log_v("finish");
 }
 
 void sensorsTask(void * pvParameters) {
 
-    Serial.print("Start I2C with SDA=");
-    Serial.print(SDA_PIN);
-    Serial.print("; SCL=");
-    Serial.println(SCL_PIN);
-    Wire.begin(SDA_PIN, SCL_PIN);   // join i2c bus
+    log_v("Start I2C with SDA=%d, SCL=%d", I2C_SDA, I2C_SCL);
+    Wire.begin(I2C_SDA, I2C_SCL);   // join i2c bus
     Serial.println("I2C started");
 
     while(true) 
@@ -175,19 +163,31 @@ void sensorsTask(void * pvParameters) {
 }
 
 
-void startExternalSensors(MessageBufferHandle_t buffer, MessageBufferHandle_t sensorsList) {
+void startExternalSensors() {
 
-    msgs = buffer;
-    bhSensors = sensorsList;
+    xMessageBuffer = xMessageBufferCreate(1024);
+    if (xMessageBuffer == NULL) {
+        log_e("Cant create message buffer");
+        return;
+    }
 
-    Serial.println("Starting task on core 0");
-    xTaskCreatePinnedToCore(
+    xSensorsList = xMessageBufferCreate(256);
+    if (xSensorsList == NULL) {
+        log_e("Cant create sensors list");
+        return;
+    }
+
+    log_v("Starting task");
+
+    //xTaskCreate()
+    //xTaskCreatePinnedToCore
+    xTaskCreate(
                     sensorsTask,        /* Task function. */
                     "sensorsTask",      /* name of task. */
                     10000,       /* Stack size of task */
                     NULL,        /* parameter of the task */
-                    1,           /* priority of the task */
-                    &task1,      /* Task handle to keep track of created task */
-                    0);          /* pin task to core 0 */                  
-    Serial.println("Task started on core 0");
+                    0,           /* priority of the task */
+                    &task1      /* Task handle to keep track of created task */
+                    );
+    log_v("Started task");
 }
