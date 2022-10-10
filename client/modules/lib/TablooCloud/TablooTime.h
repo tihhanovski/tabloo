@@ -24,6 +24,10 @@ struct SimpleDateTime {
     uint8_t minutes = 0;
     uint8_t seconds = 0;
     uint8_t offset = 0;
+
+    bool isValid() {
+        return year > 4;
+    }
 };
 
 
@@ -68,6 +72,16 @@ void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t
 void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, uint8_t offset) {
     rtc.offset = 900 * offset;
     setDateTime(year, month, day, hour, minute, second);
+}
+
+void getDateTime(uint8_t& year, uint8_t& month, uint8_t& day, uint8_t& hour, uint8_t& minute, uint8_t& second, uint8_t& offset) {
+    year = rtc.getYear() - 2000;
+    month = 1 + rtc.getMonth();
+    day = rtc.getDay();
+    hour = rtc.getHour();
+    minute = rtc.getMinute();
+    second = rtc.getSecond();
+    offset = rtc.offset / 900;
 }
 
 

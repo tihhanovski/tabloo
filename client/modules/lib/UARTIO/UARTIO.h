@@ -28,12 +28,11 @@
 #define logToSerialHex //dbgOutputHex
 #endif
 
-class UARTIO_Message {
-    public:
-        uint8_t     type = UARTIO_TYPE_NONE;
-        uint32_t    crc32 = 0;
-        uint32_t    length = 0;
-        uint8_t*       body = nullptr;
+struct UARTIO_Message {
+    uint8_t     type = UARTIO_TYPE_NONE;
+    uint32_t    crc32 = 0;
+    uint32_t    length = 0;
+    uint8_t*    body = nullptr;
 };
 
 class UARTIO {

@@ -1,5 +1,12 @@
 #include <Arduino.h>
 
+#define SDA_PIN 21
+#define SCL_PIN 22
+#define I2C_ADDR 0x04
+#define I2C_TARGET_BUFFER_SIZE 1024
+
+#include <TablooI2CTarget.h>
+
 // Example testing sketch for various DHT humidity/temperature sensors written by ladyada
 // REQUIRES the following Arduino libraries:
 // - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
@@ -46,23 +53,19 @@ float heatIndex;
 // be received first. This is internally done by the WireSlaveRequest class.
 // The data is sent using WirePacker, also done internally by WireSlave.
 // Refer to the "master_reader" example for use with this
-#include <Wire.h>
-#include <WireSlave.h>
 
-#define SDA_PIN 21
-#define SCL_PIN 22
-#define I2C_SLAVE_ADDR 0x04
+uint8_t y = 0;
 
-// function that runs whenever the master sends an empty packet.
-// this function is registered as an event, see setup().
-// do not perform time-consuming tasks inside this function,
-// do them elsewhere and simply read the data you wish to
-// send inside here.
-void requestI2CEvent() {
+
+void dataRequested() {
     log_v("requested data");
-    static byte y = 0;
+
+    uint8_t yr, mo, dy, hr, mn, sc, of;
+    getDateTime(yr, mo, dy, hr, mn, sc, of);
 
     WireSlave.print(y++);
+    WireSlave.print("D: ");
+    WireSlave.print("" + String(yr) + "-" + String(mo) + "-" + String(dy) + "T" + String(hr) + ":" + String(mn) + ":" + String(sc) + "+" + String(of));
     WireSlave.print(": ");
     WireSlave.print("H: ");
     WireSlave.print(humidity);
@@ -74,22 +77,21 @@ void requestI2CEvent() {
     log_v("data printed");
 }
 
-void setupI2CSlave() {
-    bool res = WireSlave.begin(SDA_PIN, SCL_PIN, I2C_SLAVE_ADDR);
-    if (!res) {
-        log_e("I2C slave init failed");
-        while(1) delay(100);
-    }
-
-    WireSlave.onRequest(requestI2CEvent);
-    log_i("Slave joined I2C bus with addr #%d", I2C_SLAVE_ADDR);
+void commandReceived(uint8_t* command, size_t cmdLength) {
+    char* c = new char[cmdLength + 1];
+    memcpy(c, command, cmdLength);
+    c[cmdLength] = 0;
+    log_i("Command received '%s'", c);
+    delete[] c;
 }
-
 
 void setup() {
     Serial.begin(115200);
     dht.begin();
-    setupI2CSlave();
+
+    i2ctarget_setup();
+    i2ctarget_onDataRequested = dataRequested;
+    i2ctarget_onCommand = commandReceived;
 }
 
 unsigned long nextTime = 0;
@@ -122,14 +124,7 @@ void readSensor() {
 
 
 void loop() {
-
-
-    // the slave response time is directly related to how often
-    // this update() method is called, so avoid using long delays
-    // inside loop(), and be careful with time-consuming tasks
-    WireSlave.update();
-
+    i2ctarget_loop();
     delay(1);
-
     readSensor();
 }

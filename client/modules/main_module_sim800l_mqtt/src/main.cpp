@@ -34,7 +34,7 @@ UARTTransport uartt(io);
 #include <TablooGSM.h>
 #include <TablooMQTT.h>
 #include <TablooSetup.h>
-#include <ExternalSensors.h>
+#include <TablooI2C.h>
 #include <time.h>
 
 
@@ -56,19 +56,55 @@ void onTimetableReceived(char* data, size_t dataSize) {
 
 void onCommandReceived(char* data, size_t dataSize) {
     log_v("got command, will send to display");
-    uartt.write(UART_PACKET_TYPE_COMMAND, (uint8_t*)data, dataSize);
-    log_v("sent %d bytes", dataSize);
+    //command first byte is address
+    switch (data[0])
+    {
+        case 0:     //command for main controller
+            log_i("TODO Command for main controller received: %s", data + 1);
+            break;
+        case 1:     //command for display. Will be sent over UART
+            uartt.write(UART_PACKET_TYPE_COMMAND, (uint8_t*)(data + 1), dataSize - 1);
+            log_v("sent %d bytes", dataSize);
+            break;
+        default:    //other, I2C target assumed
+            byte targetAddr = (byte)data[0];
+            data[0] = UART_PACKET_TYPE_COMMAND; //TODO bad style
+            log_i("Command for I2C target. Will be passed through");
+            i2c_write(targetAddr, (uint8_t*)(data), dataSize);
+            data[0] = targetAddr; //TODO bad style
+            break;
+    }
+}
+
+void sendTimeToTargets() {
+    if(!isTimeInitialized()) {
+        log_v("Time not initialized yet");
+        return;
+    }
+    uint8_t p[8] = {UART_PACKET_TYPE_CURRENTTIME, 0, 0, 0, 0, 0, 0, 0};
+    getDateTime(p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+    log_v("Will send to targets: %d.%d.%d %d:%d:%d", p[1], p[2], p[3], p[4], p[5], p[6]);
+    if(p[1] > 4) {
+        log_v("Send time to I2C targets");
+        i2c_write(p, 8);
+    } else 
+        log_v("Invalid time, wont send it to I2C targets");
 }
 
 void onSensorsListReceived(char* data, size_t dataSize) {
     log_v("got new sensors list, will save it");
-    saveSensorsList(data, dataSize);
+    i2c_save_list(data, dataSize);
     log_v("Slaves data saved");
+    // TODO send data to slave
+    sendTimeToTargets();
 }
 
-void sendTime(SimpleDateTime dt) {
+void sendTime(const SimpleDateTime& dt) {
+    log_v("Send time to display");
     uint8_t packet[7] = {dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds, dt.offset};
     uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, 7);
+
+    sendTimeToTargets();
 }
 
 unsigned long nextTimeSyncMillis = 0;
@@ -76,14 +112,18 @@ void syncTime() {
 
     // byte per field (year - 2000)
     // y-m-d-h-m-s-z
-
     unsigned long t = millis();
     if(nextTimeSyncMillis > t)
         return;
+    log_v("Sync time with mobile network");
     nextTimeSyncMillis = t + 100000;
     SimpleDateTime time = requestNetworkDateTime();
     t = millis() - t;
     log_v("Time %s (request took %d msec)", format(time), t);
+
+    setDateTime(time.year, time.month, time.day, time.hours, time.minutes, time.seconds, time.offset);
+
+    //checkLocation();
 
     /*
     log_v("Will config time using NTP");
@@ -168,7 +208,7 @@ void setup() {
     if(ensureConnected())
         mqtt_start();
 
-    startExternalSensors();
+    i2c_start();
 
     // xTaskCreate(
     //     externalSensorsDataUploadTask,          /* Task function. */

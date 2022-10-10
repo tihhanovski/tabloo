@@ -128,6 +128,39 @@ void startModem() {
         log_v("No need to unlock SIM");
 }
 
+void checkLocation() {
+    #ifdef TINY_GSM_MODEM_HAS_GSM_LOCATION
+        float lat      = 0;
+        float lon      = 0;
+        float accuracy = 0;
+        int   year     = 0;
+        int   month    = 0;
+        int   day      = 0;
+        int   hour     = 0;
+        int   min      = 0;
+        int   sec      = 0;
+        for (int8_t i = 3; i; i--) {
+            log_v("%d.\tRequesting current GSM location", i);
+            if (modem.getGsmLocation(&lat, &lon, &accuracy, &year, &month, &day, &hour, &min, &sec)) {
+                log_v("Latitude: %f, longitude: %f", lat, lon);
+                log_v("Accuracy: %f", accuracy);
+                log_v("Year: %d, month: %d, day: %d", year, month, day);
+                log_v("Hour: %d, min: %d, sec: %d", hour, min, sec);
+                break;
+            } else {
+                log_v("Couldn't get GSM location, retrying in 15s.");
+                delay(15000L);
+            }
+        }
+        log_v("Retrieving GSM location again as a string");
+        String location = modem.getGsmLocation();
+        log_v("GSM Based Location String: %s", location);
+
+    #else
+        log_v("No location");
+    #endif
+}
+
 SimpleTime requestNetworkTime() {
     int   year3    = 0;
     int   month3   = 0;
@@ -191,9 +224,9 @@ SimpleDateTime requestNetworkDateTime() {
             ret.offset = trunc(4 * timezone);   //TODO is it 
             break;
         } else {
-            log_w("Couldn't get network time (try %d), retrying in 15s.", i);
+            log_w("Couldn't get network time (try %d), retrying in 5s.", i);
             //SerialMon.print("Couldn't get network time, retrying in 15s.");
-            delay(15000L);
+            delay(5000L);
         }
     }
     return ret;
