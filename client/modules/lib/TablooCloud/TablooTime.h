@@ -30,7 +30,6 @@ struct SimpleDateTime {
     }
 };
 
-
 struct SimpleTime {
     uint8_t hours = 0;
     uint8_t minutes = 0;
@@ -53,24 +52,41 @@ bool isTimeInitialized() {
     return rtc_time_initialized;
 }
 
+void getHourAndMinute(uint8_t& h, uint8_t& m) {
+    m = rtc.getMinute();
+    h = rtc.getHour(true);
+}
+
 // TODO: Bad code, read about timezones and write better
 void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second) {
 
-    log_v("setDateTime %d-%d-%d %d:%d:%d", year, month, day, hour, minute, second);
+    log_v("setDateTime %d-%d-%d %d:%d:%d+%d", year, month, day, hour, minute, second, rtc.offset);
     if(year <= 4) {
         log_e("Invalid time detected. Skip RTC initialization");
         return;
     }
 
     rtc.setTime(second, minute, hour, day, month, 2000 + year);
+
+    //weird offset hack:
+
+    uint8_t h, m;
+    getHourAndMinute(h, m);
+    log_v("Time after setup: %d.%d <-- %d", h, m, rtc.getLocalEpoch());
+
     unsigned long le = rtc.getLocalEpoch();
     le = le - rtc.offset;
     rtc.setTime(le);
+
+    getHourAndMinute(h, m);
+    log_v("Time after hack: %d.%d <-- %d", h, m, rtc.getLocalEpoch());
+
     rtc_time_initialized = true;
 }
 
 void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, uint8_t offset) {
     rtc.offset = 900 * offset;
+    log_v("Setting rtc offset to 900 * %d = %d ", offset, rtc.offset);
     setDateTime(year, month, day, hour, minute, second);
 }
 
@@ -78,17 +94,12 @@ void getDateTime(uint8_t& year, uint8_t& month, uint8_t& day, uint8_t& hour, uin
     year = rtc.getYear() - 2000;
     month = 1 + rtc.getMonth();
     day = rtc.getDay();
-    hour = rtc.getHour();
+    hour = rtc.getHour(true);
     minute = rtc.getMinute();
     second = rtc.getSecond();
     offset = rtc.offset / 900;
 }
 
-
-void getHourAndMinute(uint8_t& h, uint8_t& m) {
-    m = rtc.getMinute();
-    h = rtc.getHour(true);
-}
 
 /**
  * @brief Returns current day of week (0=sunday, 6=saturday)

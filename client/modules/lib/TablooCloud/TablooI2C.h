@@ -42,8 +42,9 @@
 #include <freertos/message_buffer.h>
 #include <WirePacker.h>
 
+bool i2c_started = false;
 
-MessageBufferHandle_t xMessageBuffer;
+MessageBufferHandle_t targetsMessageBuffer;
 MessageBufferHandle_t xSensorsList;
 
 SemaphoreHandle_t i2c_talk_semaphore = xSemaphoreCreateMutex();
@@ -56,6 +57,12 @@ bool _i2c_takeSemaphore() {
 void _i2c_giveSemaphore() {
     log_v("giving semaphore");
     xSemaphoreGive(i2c_talk_semaphore);
+}
+
+bool i2c_isStarted() {
+    if(!i2c_started)
+        log_e("I2C not started");
+    return i2c_started;
 }
 
 long unsigned int nextPollTime = 0;
@@ -75,60 +82,49 @@ uint8_t targets[TARGETS_MAX_COUNT];
 size_t targetsCount = 0;
 
 void i2c_write(byte addr, uint8_t* msg, size_t msgSize) {
+    if(i2c_isStarted()) {
+        WirePacker packer;
+        for(size_t i = 0; i < msgSize; i++)
+            packer.write(msg[i]);
+        packer.end();
 
-    WirePacker packer;
-    for(size_t i = 0; i < msgSize; i++)
-        packer.write(msg[i]);
-    packer.end();
-
-    Wire.beginTransmission(addr);
-    while(packer.available())
-        Wire.write(packer.read());
-    Wire.endTransmission();
+        Wire.beginTransmission(addr);
+        while(packer.available())
+            Wire.write(packer.read());
+        Wire.endTransmission();
+    }
 }
 
 void i2c_read(byte addr) {
-    log_v("Slave %d :", addr);
-    // first create a WireSlaveRequest object
-    // first argument is the Wire bus the slave is attached to (Wire or Wire1)
-    WireSlaveRequest req(Wire, addr, MAX_TARGET_RESPONSE_LENGTH);
-    // optional: set delay in milliseconds between retry attempts.
-    // the default value is 10 ms
-    req.setRetryDelay(5);
+    if(i2c_isStarted()) {
+        log_v("Target %d :", addr);
+        WireSlaveRequest req(Wire, addr, MAX_TARGET_RESPONSE_LENGTH);
+        req.setRetryDelay(5);
 
-    // attempts to read a packet from an ESP32 slave.
-    // there's no need to specify how many bytes are requested,
-    // since data is expected to be packed with WirePacker,
-    // and thus can have any length.
-    bool success = req.request();
-
-
-    if (success) {
-        sensorData.address = addr;
-        uint32_t i = 0;
-        Serial.print("[");
-        while (1 < req.available()) {  // loop through all but the last byte
-            char c = req.read();       // receive byte as a character
-            Serial.print(c);                // print the character
-            if(i < TARGETDATA_BUFFER_SIZE)
-                sensorData.data[i++] = c;
-            else {
-                log_v("!!!ERROR!!! Too many bytes from slave");
-                break;
+        if (req.request()) {
+            sensorData.address = addr;
+            uint32_t i = 0;
+            Serial.print("[");
+            while (1 < req.available()) {  // loop through all but the last byte
+                char c = req.read();       // receive byte as a character
+                Serial.print(c);                // print the character
+                if(i < TARGETDATA_BUFFER_SIZE)
+                    sensorData.data[i++] = c;
+                else {
+                    log_v("!!!ERROR!!! Too many bytes from slave");
+                    break;
+                }
             }
+            Serial.println("]");
+            sensorData.dataSize = i;
+
+            xMessageBufferSend( targetsMessageBuffer,
+                                ( void * ) &sensorData,
+                                i + 5,
+                                pdMS_TO_TICKS(500) );
         }
-        Serial.println("]");
-        sensorData.dataSize = i;
-
-        xMessageBufferSend( xMessageBuffer,
-                            ( void * ) &sensorData,
-                            i + 5,
-                            pdMS_TO_TICKS(500) );
-
-        
-    }
-    else {
-        log_v("Error reading from slave: %s", req.lastStatusToString());
+        else 
+            log_v("Error reading from slave: %s", req.lastStatusToString());
     }
 }
 
@@ -163,7 +159,6 @@ void i2c_load_list() {
             pdMS_TO_TICKS(100));
     } else
         log_v("targets buffer is empty, use old list");
-
 }
 
 void i2c_process_targets() {
@@ -193,28 +188,22 @@ void i2c_process_targets() {
 
 void i2c_write(uint8_t* msg, size_t msgSize) {
     i2c_load_list();
-
     if(_i2c_takeSemaphore()) {
         log_v("Writing data to %d targets:", targetsCount);
         uint8_t* p = targets;
         for(size_t i = 0; i < targetsCount; i++)
             i2c_write(*(p++), msg, msgSize);
         _i2c_giveSemaphore();
-    } else {
+    } else
         log_i("Cant take semphore");
-    }
-
     log_v("finish");
 }
 
 void i2c_task(void * pvParameters) {
-
     const TickType_t xDelay = 100 / portTICK_PERIOD_MS;
-
     log_v("Start I2C with SDA=%d, SCL=%d", I2C_SDA, I2C_SCL);
-    Wire.begin(I2C_SDA, I2C_SCL);   // join i2c bus
+    Wire.begin(I2C_SDA, I2C_SCL);
     Serial.println("I2C started");
-
     while(true) {
         i2c_process_targets();
         vTaskDelay(xDelay);
@@ -223,22 +212,18 @@ void i2c_task(void * pvParameters) {
 
 
 void i2c_start() {
-
-    xMessageBuffer = xMessageBufferCreate(1024);
-    if (xMessageBuffer == NULL) {
+    targetsMessageBuffer = xMessageBufferCreate(1024);
+    if (targetsMessageBuffer == NULL) {
         log_e("Cant create message buffer");
         return;
     }
-
     xSensorsList = xMessageBufferCreate(256);
     if (xSensorsList == NULL) {
         log_e("Cant create targets list");
         return;
     }
-
     log_v("Starting task");
 
-    //xTaskCreate()
     //xTaskCreatePinnedToCore
     xTaskCreate(
                     i2c_task,        /* Task function. */
@@ -248,5 +233,7 @@ void i2c_start() {
                     0,           /* priority of the task */
                     &i2c_task_handle      /* Task handle to keep track of created task */
                     );
-    log_v("Started task");
+    log_v("Task started");
+
+    i2c_started = true;
 }

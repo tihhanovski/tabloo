@@ -1,9 +1,6 @@
 #include <Arduino.h>
 
-//#define SDA_PIN 21
-//#define SCL_PIN 22
 #define I2C_ADDR 0x05
-//#define I2C_TARGET_BUFFER_SIZE 1024
 
 #define LED_PIN 2
 
@@ -45,10 +42,7 @@ void setup() {
     i2ctarget_onCommand = commandReceived;
 }
 
-void loop() {
-    i2ctarget_loop();
-    delay(1);
-
+void blink_loop() {
     if(blinkRequested) {
         log_v("led on");
         digitalWrite(LED_PIN, 1);
@@ -62,4 +56,10 @@ void loop() {
         digitalWrite(LED_PIN, 0);
         ledOn = false;
     }
+}
+
+void loop() {
+    i2ctarget_loop();
+    blink_loop();
+    delay(1);
 }
