@@ -13,9 +13,7 @@
 #define UART_PACKET_TYPE_TIMETABLE 1
 #define UART_PACKET_TYPE_CURRENTTIME 2
 #define UART_PACKET_TYPE_COMMAND 3
-
-
-//#include <Arduino.h>
+#define PACKET_TYPE_TARGETSLIST 4
 
 
 #endif
