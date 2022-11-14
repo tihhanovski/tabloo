@@ -31,14 +31,14 @@ See https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA/blob/master/e
 
 // HUB75E pinout
 
-//  1. R1 -> 25 | 16. G1 -> 26
-//  2. B1 -> 27 | 15. ----> GND
-//  3. R2 -> 14 | 14. G2 -> 12
-//  4. B2 -> 13 | 13. E  -> <NOT CONNECTED>
-//  5. A  -> 23 | 12. B  -> 19
-//  6. C  ->  5 | 11. D  -> 17
-//  7. CLK-> 16 | 10. LAT-> 4
-//  8. OE -> 15 |  9. ----> GND
+//  1. R1 -> 25 		| 16. G1 -> 26
+//  2. B1 -> 27 		| 15. ----> GND
+//  3. R2 -> 14 		| 14. G2 -> 12
+//  4. B2 -> 13 		| 13. E  -> <NOT CONNECTED>
+//  5. A  -> 23 		| 12. B  -> 19
+//  6. C  ->  5 		| 11. D  -> 17 / TX2
+//  7. CLK-> 16 / RX2 	| 10. LAT-> 4
+//  8. OE -> 15 		|  9. ----> GND
 
 
 

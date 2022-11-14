@@ -8,10 +8,6 @@
  * https://github.com/tihhanovski/tabloo/wiki/Server
  * 
  * Short format description
- *  current date and time (3 bytes)
- *      hours 0 - 23 (1 byte)
- *      minutes 0 - 59 (1 byte)
- *      seconds 0 - 59 (1 byte)
  * count of lines (1 byte)
  * Line names. Three zero terminated c strings for each line (x count of lines)
  *      Line short name ie line number (zero terminated c string)
@@ -24,8 +20,7 @@
  *      Arrival time hours 0 - 23       (1 byte)
  *      Arrival time minutes 0 - 59     (1 byte)
  *      Line index (from line names)    (1 byte)
- * Sensors count (1 byte)
- * Sensors addresses (<Sensor count> bytes), one byte per address
+ *      Weekday mask                    (1 byte)
  */
 
 #include <Arduino.h>
@@ -51,8 +46,8 @@ class BusStopData {
 public:
     LineData* lines = nullptr;      // Line data array
     uint8_t lineCount;              // Lines count
-    uint8_t sensorCount;            // Sensors count
-    char* sensors = nullptr;
+    //uint8_t sensorCount;            // Sensors count
+    //char* sensors = nullptr;
 
 
     /** 
@@ -73,25 +68,19 @@ public:
      * @param lineIndex line index in data retrieved from server
      * @param h current time hours (0 - 23)
      * @param m current time minutes (0 - 59)
+     * @param dow day of week (0 - 6);
      * 
      * Find next bus arrival time for given line from timetable and return difference between it and current time in minutes.
      * If no next time found, use first time from timetable as next days time
      * TODO will produce wrong result if tomorrow times are different (for example weekend ws weekday schedule)
      */
-    uint16_t getWaitingTime(uint8_t lineIndex, uint8_t h, uint8_t m)
+    uint16_t getWaitingTime(uint8_t lineIndex, uint8_t h, uint8_t m, uint8_t dow)
     {
         uint16_t currentMin = h * 60 + m;               // Convert current time to minutes
+        uint8_t dowMask = 1 << dow;
 
         #ifdef DEBUG_TIMETABLES
-            Serial.print("Looking for next time ");
-            Serial.print(lineIndex);
-            Serial.print("\t");
-            Serial.print(h);
-            Serial.print(":");
-            Serial.print(m);
-            Serial.print(" --> ");
-            Serial.print(currentMin);
-            Serial.println(":");
+        log_v("Looking for next time %d\t%d:%d dow=%d, dowMask=%d, --> %d", lineIndex, h, m, dow, dowMask, currentMin);
         #endif
 
         uint16_t ret = 0;                               // Will return it
@@ -100,15 +89,9 @@ public:
         for(size_t i = 0; i < timesCount; i++)          // Run through timetable
         {
             #ifdef DEBUG_TIMETABLES
-                Serial.print("{t:");
-                Serial.print((uint8_t)*(p));
-                Serial.print(":");
-                Serial.print((uint8_t)*(p+1));
-                Serial.print(" L");
-                Serial.print((uint8_t)*(p+2));
-                Serial.print("}\t");
+            log_v("{t:%d:%d L%d}", (uint8_t)*(p), (uint8_t)*(p+1), (uint8_t)*(p+2));
             #endif
-            if(*(p + 2) == lineIndex) {                 // Check bus line index
+            if((*(p + 2) == lineIndex) && (*(p + 3) & dowMask)) {                 // Check bus line index and day of week mask
                 uint16_t t = (*p) * 60 + (*(p + 1));    // Calculate arrival time in minutes since midnight
                 #ifdef DEBUG_TIMETABLES
                     Serial.print(t);
@@ -125,9 +108,8 @@ public:
                     #endif
                     return t - currentMin;             // Return the difference
                 }
-
             }
-            p += 3;                                    // Jump to the next time in timetable
+            p += 4;                                    // Jump to the next time in timetable
         }
 
         #ifdef DEBUG_TIMETABLES
@@ -142,7 +124,7 @@ public:
             lines = nullptr;
         }
         timetable = nullptr;
-        sensors = nullptr;
+        //sensors = nullptr;
     }
 
     /**
@@ -151,26 +133,21 @@ public:
      * Creates LineData instances for every line with pointers to names of lines
      * Saves address of beginning of timetable in buffer
      */
-    void initialize(char* data)
-    {
-        if(data == nullptr)
-        {
+    void initialize(char* data) {
+        if(data == nullptr) {
             lineCount = 0;
             timesCount = 0;
             return;
         }
 
-        if(lines != nullptr)
-            delete[] lines;
-
-        char* p = data + 3;
+        cleanup();
+        char* p = data; // + 3; -- before in the beginning was 3 bytes of date
 
         lineCount = *p;
         lines = new LineData[lineCount];
         p++;
 
-        for(unsigned int i = 0; i < lineCount; i++)
-        {
+        for(unsigned int i = 0; i < lineCount; i++) {
             lines[i].shortName = p;
             p = strchr(p, '\0') + 1;
             lines[i].longName = p;
@@ -185,12 +162,5 @@ public:
 
         timetable = p;  //Save timetable start address
 
-        //Sensors data
-        p = p + timesCount * 3;
-        sensorCount = *p;
-        if(sensorCount > 0)
-            sensors = p + 1;
-        else
-            sensors = nullptr;
     }
 };
