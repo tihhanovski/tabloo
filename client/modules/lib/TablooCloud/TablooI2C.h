@@ -105,13 +105,13 @@ void i2c_read(byte addr) {
             sensorData.address = addr;
             uint32_t i = 0;
             Serial.print("[");
-            while (1 < req.available()) {  // loop through all but the last byte
-                char c = req.read();       // receive byte as a character
+            while (1 < req.available()) {       // loop through all but the last byte
+                char c = req.read();            // receive byte as a character
                 Serial.print(c);                // print the character
                 if(i < TARGETDATA_BUFFER_SIZE)
                     sensorData.data[i++] = c;
                 else {
-                    log_v("!!!ERROR!!! Too many bytes from slave");
+                    log_v("!!!ERROR!!! Too many bytes from target");
                     break;
                 }
             }
@@ -130,19 +130,26 @@ void i2c_read(byte addr) {
 
 void i2c_save_list(char*& data, size_t dataSize) {
     //TODO - this may fail. Check docs
-    xMessageBufferReset(xSensorsList);  // Try to reset buffer
+    try {
+        xMessageBufferReset(xSensorsList);  // Try to reset buffer
+    } catch(int e) {
+        log_e("Exception on xMessageBufferReset: %d", e);
+    }
 
-    //First byte is targets count
-    //data + 1 points to start of targets list
-    log_v("Saving list of targets:");
-    for(char* i = data + 1; i < data + dataSize; i++)
-        log_v("  sensor addr %d", *i);
+    if(dataSize > 1) {
+        //First byte is targets count
+        //data + 1 points to start of targets list
+        log_v("Saving list of targets:");
+        for(char* i = data + 1; i < data + dataSize; i++)
+            log_v("  sensor addr %d", *i);
 
-    xMessageBufferSend( xSensorsList,       // put targets data to buffer
-        ( void * ) (data + 1),              // pointer to targets addr list (byte per sensor)
-        dataSize - 1,                       // targets count
-        pdMS_TO_TICKS(500) );               // block for 500 msec max
-    log_v("sent %d bytes", dataSize - 1);
+        xMessageBufferSend( xSensorsList,       // put targets data to buffer
+            ( void * ) (data + 1),              // pointer to targets addr list (byte per sensor)
+            dataSize - 1,                       // targets count
+            pdMS_TO_TICKS(500) );               // block for 500 msec max
+        log_v("sent %d bytes", dataSize - 1);
+    } else
+        log_v("No targets");
 }
 
 /**

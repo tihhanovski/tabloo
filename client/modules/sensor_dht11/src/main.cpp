@@ -1,11 +1,19 @@
 #include <Arduino.h>
 
+
 #define SDA_PIN 21
 #define SCL_PIN 22
 #define I2C_ADDR 0x04
 #define I2C_TARGET_BUFFER_SIZE 1024
 
+//#define OTA_ENABLED true
+//#define OTA_HOSTNAME "sensor_dht11"
+
 #include <TablooI2CTarget.h>
+
+#ifdef OTA_ENABLED
+    #include "OTA.h"
+#endif
 
 // Example testing sketch for various DHT humidity/temperature sensors written by ladyada
 // REQUIRES the following Arduino libraries:
@@ -15,28 +23,12 @@
 #include "DHT.h"
 
 #define DHTPIN 4     // Digital pin connected to the DHT sensor
-// Feather HUZZAH ESP8266 note: use pins 3, 4, 5, 12, 13 or 14 --
-// Pin 15 can work but DHT must be disconnected during program upload.
 
-#define MEASUREMENT_DELAY 2000
+#define MEASUREMENT_INTERVAL 2000
 
-// Uncomment whatever type you're using!
-#define DHTTYPE DHT11   // DHT 11
-//#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
-//#define DHTTYPE DHT21   // DHT 21 (AM2301)
+#define DHTTYPE DHT11       // DHT 11
+DHT dht(DHTPIN, DHTTYPE);   // Initialize DHT sensor.
 
-// Connect pin 1 (on the left) of the sensor to +5V
-// NOTE: If using a board with 3.3V logic like an Arduino Due connect pin 1
-// to 3.3V instead of 5V!
-// Connect pin 2 of the sensor to whatever your DHTPIN is
-// Connect pin 4 (on the right) of the sensor to GROUND
-// Connect a 10K resistor from pin 2 (data) to pin 1 (power) of the sensor
-
-// Initialize DHT sensor.
-// Note that older versions of this library took an optional third parameter to
-// tweak the timings for faster processors.  This parameter is no longer needed
-// as the current DHT reading algorithm adjusts itself to work on faster procs.
-DHT dht(DHTPIN, DHTTYPE);
 
 float humidity;
 float temperature;
@@ -47,15 +39,7 @@ float heatIndex;
 // ESP32 I2C slave library: <https://github.com/gutierrezps/ESP32_I2C_Slave>
 // based on the example by Nicholas Zambetti <http://www.zambetti.com>
 
-// Demonstrates use of the WireSlave library for ESP32.
-// Sends data as an I2C/TWI slave device; data is packed using WirePacker.
-// In order to the slave send the data, an empty packet must
-// be received first. This is internally done by the WireSlaveRequest class.
-// The data is sent using WirePacker, also done internally by WireSlave.
-// Refer to the "master_reader" example for use with this
-
 uint8_t y = 0;
-
 
 void dataRequested() {
     log_v("requested data");
@@ -64,7 +48,7 @@ void dataRequested() {
     getDateTime(yr, mo, dy, hr, mn, sc, of);
 
     WireSlave.print(y++);
-    WireSlave.print("D: ");
+    WireSlave.print(" D: ");
     WireSlave.print("" + String(yr) + "-" + String(mo) + "-" + String(dy) + "T" + String(hr) + ":" + String(mn) + ":" + String(sc) + "+" + String(of));
     WireSlave.print(": ");
     WireSlave.print("H: ");
@@ -89,6 +73,10 @@ void setup() {
     Serial.begin(115200);
     dht.begin();
 
+    #ifdef OTA_ENABLED
+    ota_setup();
+    #endif
+
     i2ctarget_setup();
     i2ctarget_onDataRequested = dataRequested;
     i2ctarget_onCommand = commandReceived;
@@ -97,34 +85,30 @@ void setup() {
 unsigned long nextTime = 0;
 
 void readSensor() {
-    if(nextTime > millis()) return;
+    unsigned long time = millis();
+    if(nextTime > time) 
+        return;
+    nextTime = time + MEASUREMENT_INTERVAL;
 
-    float h = dht.readHumidity();
-    // Read temperature as Celsius (the default)
-    float t = dht.readTemperature();
-    // Read temperature as Fahrenheit (isFahrenheit = true)
-    //float f = dht.readTemperature(true);
+    float h = dht.readHumidity();               // Read humidity
+    float t = dht.readTemperature();            // Read temperature as Celsius (the default)
+    //float f = dht.readTemperature(true);      // Read temperature as Fahrenheit (isFahrenheit = true)
 
-    // Check if any reads failed and exit early (to try again).
-    if (!(isnan(h) || isnan(t))) {
+    if (isnan(h) || isnan(t))                   // Check if any reads failed and exit early (to try again).
+        log_e("Failed to read from DHT sensor!");
+    else {
         temperature = t;
         humidity = h;
-        // Compute heat index in Celsius (isFahreheit = false)
         heatIndex = dht.computeHeatIndex(t, h, false);
-
         log_v("H: %f, T: %f, %I: %f", humidity, temperature, heatIndex);
-    } else {
-        log_e("Failed to read from DHT sensor!");
     }
-
-
-    nextTime = millis() + MEASUREMENT_DELAY;
 }
-
-
 
 void loop() {
     i2ctarget_loop();
     delay(1);
     readSensor();
+    #ifdef OTA_ENABLED
+    ArduinoOTA.handle();
+    #endif
 }

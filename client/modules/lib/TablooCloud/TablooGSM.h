@@ -17,12 +17,6 @@
 #ifndef _TABLOOGSM_H_
 #define _TABLOOGSM_H_
 
-#include <Arduino.h>
-#include <ArduinoHttpClient.h>  //see https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
-#include <TablooGeneral.h>      //Various utilities
-#include <TablooTime.h>
-#include <TablooSetup.h>        //Settings storage
-
 //All setup moved to preferences, see TablooSetup.h
 //const char apn[]      = "internet.tele2.ee"; // APN (example: internet.vodafone.pt) use https://wiki.apnchanger.org
 //const char gprsUser[] = ""; // GPRS User
@@ -45,6 +39,12 @@
 // Configure TinyGSM library
 #define TINY_GSM_MODEM_SIM800      // Modem is SIM800
 #define TINY_GSM_RX_BUFFER   1024  // Set RX buffer to 1Kb
+
+#include <Arduino.h>
+//#include <ArduinoHttpClient.h>  //see https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
+#include <TablooGeneral.h>      //Various utilities
+#include <TablooTime.h>
+#include <TablooSetup.h>        //Settings storage
 
 #include <TinyGsmClient.h>
 
@@ -69,19 +69,8 @@ TinyGsmClientSecure client(modem);
 #define IP5306_ADDR          0x75
 #define IP5306_REG_SYS_CTL0  0x00
 
-/*
-bool setPowerBoostKeepOn(int en){
-    I2CPower.beginTransmission(IP5306_ADDR);
-    I2CPower.write(IP5306_REG_SYS_CTL0);
-    if (en) {
-        I2CPower.write(0x37); // Set bit1: 1 enable 0 disable boost keep on
-    } else {
-        I2CPower.write(0x35); // 0x37 is default reg value
-    }
-    return I2CPower.endTransmission() == 0;
-}*/
 
-void startModem() {
+void networking_start() {
     // Start I2C communication
     //I2CPower.begin(I2C_SDA, I2C_SCL, 400);
     //I2CPower.begin(I2C_SDA, I2C_SCL, 400000);
@@ -128,71 +117,7 @@ void startModem() {
         log_v("No need to unlock SIM");
 }
 
-void checkLocation() {
-    #ifdef TINY_GSM_MODEM_HAS_GSM_LOCATION
-        float lat      = 0;
-        float lon      = 0;
-        float accuracy = 0;
-        int   year     = 0;
-        int   month    = 0;
-        int   day      = 0;
-        int   hour     = 0;
-        int   min      = 0;
-        int   sec      = 0;
-        for (int8_t i = 3; i; i--) {
-            log_v("%d.\tRequesting current GSM location", i);
-            if (modem.getGsmLocation(&lat, &lon, &accuracy, &year, &month, &day, &hour, &min, &sec)) {
-                log_v("Latitude: %f, longitude: %f", lat, lon);
-                log_v("Accuracy: %f", accuracy);
-                log_v("Year: %d, month: %d, day: %d", year, month, day);
-                log_v("Hour: %d, min: %d, sec: %d", hour, min, sec);
-                break;
-            } else {
-                log_v("Couldn't get GSM location, retrying in 15s.");
-                delay(15000L);
-            }
-        }
-        log_v("Retrieving GSM location again as a string");
-        String location = modem.getGsmLocation();
-        log_v("GSM Based Location String: %s", location);
-
-    #else
-        log_v("No location");
-    #endif
-}
-
-SimpleTime requestNetworkTime() {
-    int   year3    = 0;
-    int   month3   = 0;
-    int   day3     = 0;
-    int   hour3    = 0;
-    int   min3     = 0;
-    int   sec3     = 0;
-    float timezone = 0;
-
-    SimpleTime ret;
-    for (int8_t i = 5; i; i--) {
-        log_v("Requesting current network time");
-        if (modem.getNetworkTime(&year3, &month3, &day3, 
-            &hour3, &min3, &sec3,
-            &timezone)) 
-        {
-            log_v("Year: %d-%d-%d %d:%d:%d %.1f", year3, month3, day3, hour3, min3, sec3, timezone);
-
-            ret.hours = hour3;
-            ret.minutes = min3;
-            ret.seconds = sec3;
-            break;
-        } else {
-            log_w("Couldn't get network time (try %d), retrying in 15s.", i);
-            //SerialMon.print("Couldn't get network time, retrying in 15s.");
-            delay(15000L);
-        }
-    }
-    return ret;
-}
-
-SimpleDateTime requestNetworkDateTime() {
+SimpleDateTime networking_request_datetime() {
     int   year3    = 0;
     int   month3   = 0;
     int   day3     = 0;
@@ -232,7 +157,7 @@ SimpleDateTime requestNetworkDateTime() {
     return ret;
 }
 
-boolean ensureConnected() {
+boolean networking_connect() {
     if (!modem.isNetworkConnected()) {
         log_i("Network disconnected");
         if (!modem.waitForNetwork(120000L, true)) {  //180000L
@@ -274,8 +199,81 @@ boolean ensureConnected() {
     return true;
 }
 
-boolean connectToNetwork() {
-    return ensureConnected();
-}
+
+/*void checkLocation() {
+    #ifdef TINY_GSM_MODEM_HAS_GSM_LOCATION
+        float lat      = 0;
+        float lon      = 0;
+        float accuracy = 0;
+        int   year     = 0;
+        int   month    = 0;
+        int   day      = 0;
+        int   hour     = 0;
+        int   min      = 0;
+        int   sec      = 0;
+        for (int8_t i = 3; i; i--) {
+            log_v("%d.\tRequesting current GSM location", i);
+            if (modem.getGsmLocation(&lat, &lon, &accuracy, &year, &month, &day, &hour, &min, &sec)) {
+                log_v("Latitude: %f, longitude: %f", lat, lon);
+                log_v("Accuracy: %f", accuracy);
+                log_v("Year: %d, month: %d, day: %d", year, month, day);
+                log_v("Hour: %d, min: %d, sec: %d", hour, min, sec);
+                break;
+            } else {
+                log_v("Couldn't get GSM location, retrying in 15s.");
+                delay(15000L);
+            }
+        }
+        log_v("Retrieving GSM location again as a string");
+        String location = modem.getGsmLocation();
+        log_v("GSM Based Location String: %s", location);
+
+    #else
+        log_v("No location");
+    #endif
+}*/
+
+/*SimpleTime network_request_time() {
+    int   year3    = 0;
+    int   month3   = 0;
+    int   day3     = 0;
+    int   hour3    = 0;
+    int   min3     = 0;
+    int   sec3     = 0;
+    float timezone = 0;
+
+    SimpleTime ret;
+    for (int8_t i = 5; i; i--) {
+        log_v("Requesting current network time");
+        if (modem.getNetworkTime(&year3, &month3, &day3, 
+            &hour3, &min3, &sec3,
+            &timezone)) 
+        {
+            log_v("Year: %d-%d-%d %d:%d:%d %.1f", year3, month3, day3, hour3, min3, sec3, timezone);
+
+            ret.hours = hour3;
+            ret.minutes = min3;
+            ret.seconds = sec3;
+            break;
+        } else {
+            log_w("Couldn't get network time (try %d), retrying in 15s.", i);
+            //SerialMon.print("Couldn't get network time, retrying in 15s.");
+            delay(15000L);
+        }
+    }
+    return ret;
+}*/
+
+/*bool setPowerBoostKeepOn(int en){
+    I2CPower.beginTransmission(IP5306_ADDR);
+    I2CPower.write(IP5306_REG_SYS_CTL0);
+    if (en) {
+        I2CPower.write(0x37); // Set bit1: 1 enable 0 disable boost keep on
+    } else {
+        I2CPower.write(0x35); // 0x37 is default reg value
+    }
+    return I2CPower.endTransmission() == 0;
+}*/
+
 
 #endif

@@ -16,6 +16,9 @@
 #include <Arduino.h>
 #include <ESP32Time.h>
 
+ESP32Time rtc(TABLOOTIME_DEFAULT_OFFSET);
+bool rtc_time_initialized = false;
+
 struct SimpleDateTime {
     uint8_t year = 0;
     uint8_t month = 0;
@@ -25,8 +28,40 @@ struct SimpleDateTime {
     uint8_t seconds = 0;
     uint8_t offset = 0;
 
+public:
+
+    void clear() {
+        year = 0;
+        month = 0;
+        day = 0;
+        hours = 0;
+        minutes = 0;
+        seconds = 0;
+        offset = 0;
+    }
+
     bool isValid() {
         return year > 4;
+    }
+
+    void setupByRTC() {
+        struct tm timeinfo;
+        if(!getLocalTime(&timeinfo)){
+            log_e("Failed to obtain time");
+            clear();
+            return;
+        }
+
+        year = rtc.getYear() - 2000;
+        month = 1 + rtc.getMonth();
+        day = rtc.getDay();
+        hours = rtc.getHour(true);
+        minutes = rtc.getMinute();
+        seconds = rtc.getSecond();
+        offset = rtc.offset / 900;
+
+        //log_v("")
+
     }
 };
 
@@ -44,9 +79,6 @@ String format(SimpleDateTime t) {
     return (String)("") + t.hours + ":" + t.minutes + ":" + t.seconds;
 }
 
-ESP32Time rtc(TABLOOTIME_DEFAULT_OFFSET);
-
-bool rtc_time_initialized = false;
 
 bool isTimeInitialized() {
     return rtc_time_initialized;

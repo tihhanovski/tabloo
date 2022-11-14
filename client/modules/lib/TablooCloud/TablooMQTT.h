@@ -66,12 +66,12 @@ void mqtt_load_setup() {
 }
 
 boolean mqtt_connect() {
-    log_v("Starting connection");
+    log_v("Starting connection for stop %s", stop_code);
     if(!strlen(stop_code)) {
         log_e("No stop code in setup!");
         log_i("Provide stop code and restart to connect to MQTT broker");
     }
-    if(!ensureConnected()) {
+    if(!networking_connect()) {
         log_e("No connection");
         return false;
     }

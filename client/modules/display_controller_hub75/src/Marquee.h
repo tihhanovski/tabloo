@@ -10,9 +10,16 @@
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include <Arduino.h>
 
+#ifdef USE_GFX_ROOT
+#define DISPLAYCLASS GFX
+#elif !defined NO_GFX
+#define DISPLAYCLASS Adafruit_GFX
+#endif
+
+
 class Marquee {
     String  str;
-    MatrixPanel_I2S_DMA *display = nullptr;
+    DISPLAYCLASS *display = nullptr;
 
     long strLength;
     long widthInChars;
@@ -37,7 +44,7 @@ public:
         return str.c_str();
     }
 
-    Marquee(String msg, MatrixPanel_I2S_DMA *display, uint8_t x, uint8_t y, uint8_t w, uint8_t h, unsigned long msecPerPixels, uint16_t bg)
+    Marquee(String msg, DISPLAYCLASS *display, uint8_t x, uint8_t y, uint8_t w, uint8_t h, unsigned long msecPerPixels, uint16_t bg)
     {
         widthInChars = w / charWidth + 1;
         str = "           " + msg;
@@ -79,7 +86,7 @@ public:
         canvas2->drawBitmap(0, 0, canvas->getBuffer(), w + 8, h, 65000, background);
 
         display->drawBitmap(x, y, canvas2->getBuffer(), w, h, 65000, background);
-        display->drawRect(x, y, w, h, display->color444(0, 10, 15));
+        //display->drawRect(x, y, w, h, display->color444(0, 10, 15));
 
         //if(!bHalfStep)
         pos++;

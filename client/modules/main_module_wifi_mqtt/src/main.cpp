@@ -1,6 +1,6 @@
 //Setup service
-#define SETUP_LED_PIN 13
-#define SETUP_BUTTON_PIN 15
+#define SETUP_LED_PIN 2
+#define SETUP_BUTTON_PIN 4
 
 //MQTT broker data
 #define MQTT_BROKER "dev.intellisoft.ee"
@@ -33,7 +33,7 @@
 #include <BusStopData.h>
 #include <TablooGeneral.h>
 #include <TablooTime.h>
-#include <TablooGSM.h>
+#include <TablooWiFi.h>
 #include <TablooMQTT.h>
 #include <TablooSetup.h>
 #include <TablooI2C.h>
@@ -67,8 +67,11 @@ void sendTimeToTargets() {
         log_v("Invalid time, wont send it to I2C targets");
 }
 
-void onSensorsListReceived(char* data, size_t dataSize) {
+void onTargetsListReceived(char* data, size_t dataSize) {
     log_v("got new targets list, will save it");
+    log_v("Targets (%d) are: ", dataSize);
+    for(uint8_t i = 0; i < dataSize; i++)
+        log_v("\t%d", (uint8_t)data[i]);
     i2c_save_list(data, dataSize);
     log_v("targets data saved");
     // TODO send data to slave
@@ -103,7 +106,7 @@ void onInputReceived(char* topic, char* data, size_t len) {
     if(!strcmp(topic, MQTT_INPUT_SUBTOPIC_TIMETABLE))
         return onTimetableReceived(data, len);
     if(!strcmp(topic, MQTT_INPUT_SUBTOPIC_TARGETS))
-        return onSensorsListReceived(data, len);
+        return onTargetsListReceived(data, len);
     return onCommandReceived(data, len);
 }
 
@@ -128,7 +131,7 @@ void syncTime() {
     // byte per field (year - 2000)
     // y-m-d-h-m-s-z
 
-    setDateTime(time.year, time.month, time.day, time.hours, time.minutes, time.seconds, time.offset);
+    //setDateTime(time.year, time.month, time.day, time.hours, time.minutes, time.seconds, time.offset);
 
     /*
         log_v("Will config time using NTP");
@@ -179,6 +182,11 @@ void readDataFromTargets() {
 }
 
 void setup() {
+
+    // ???
+    esp_log_level_set("wifi", ESP_LOG_WARN);
+    esp_log_level_set("ssl", ESP_LOG_WARN);
+
     Serial.begin(115200);
 
     delay(3000);
@@ -189,8 +197,7 @@ void setup() {
     setup_start();
     mqtt_onInputReceived = onInputReceived;
     networking_start();
-    if(networking_connect())
-        mqtt_start();
+    mqtt_start();
 
     i2c_start();
 }

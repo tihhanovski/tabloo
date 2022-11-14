@@ -3,7 +3,10 @@
 
 // RGB LED panel library, 
 // see https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA
-#include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
+ #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
+
+#include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
+
 #include <TablooGeneral.h>
 #include <TablooTime.h>
 #include "Marquee.h"        // Marquee library
@@ -11,10 +14,12 @@
 
 #include "TalTechLogo.h"    // hardcoded Taltech logo
 
-MatrixPanel_I2S_DMA *display = nullptr;
+MatrixPanel_I2S_DMA* dma_display = nullptr;
+//VirtualMatrixPanel displayx(*dma_display, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y, SERPENT, TOPDOWN);
+VirtualMatrixPanel* display = nullptr;
 
-const uint16_t COLOR_BLACK = display->color444(0, 0, 0);
-const uint16_t COLOR_RED = display->color444(15, 0, 0);
+const uint16_t DISPLAY_COLOR_BLACK = dma_display->color444(0, 0, 0);
+const uint16_t DISPLAY_COLOR_RED = dma_display->color444(15, 0, 0);
 Marquees scrolls;           // Marquees collection
 
 /**
@@ -24,8 +29,8 @@ Marquees scrolls;           // Marquees collection
 void displayError(const char* msg) {
     log_i("Display error '%s'", msg);
     scrolls.clear();
-    display->fillRect(0, 0, display->width(), display->height(), COLOR_BLACK);
-    scrolls.add(new Marquee(msg, display, 0, 0, display->width(), 8, 300, COLOR_BLACK));
+    display->fillRect(0, 0, display->width(), display->height(), DISPLAY_COLOR_BLACK);
+    scrolls.add(new Marquee(msg, display, 0, 0, display->width(), 8, 300, DISPLAY_COLOR_BLACK));
 }
 
 void matrix_startScrolls(BusStopData &timetable) {
@@ -43,7 +48,7 @@ void matrix_startScrolls(BusStopData &timetable) {
         Serial.print(timetable.lines[i].headSign);
         Serial.print("\n");
 
-        display->fillRect(0, i * 8, 12, 8, COLOR_BLACK);
+        display->fillRect(0, i * 8, 12, 8, DISPLAY_COLOR_BLACK);
         display->setCursor(0, i * 8);
         display->print(timetable.lines[i].shortName);
         
@@ -54,7 +59,7 @@ void matrix_startScrolls(BusStopData &timetable) {
             display->width() - 30, 
             8, 
             150, 
-            COLOR_BLACK
+            DISPLAY_COLOR_BLACK
             ));
     }
 }
@@ -62,24 +67,33 @@ void matrix_startScrolls(BusStopData &timetable) {
 void matrix_splashscreen() {
     log_v("Showing splash screen");
 
+    const uint16_t logo_width = 64;
+    const uint16_t logo_height = 32;
+
+    const uint16_t logo_left = (display->width() - logo_width) / 2;
+    const uint16_t logo_top = (display->height() - logo_height) / 2;
+
     // Show beautiful splash screen with taltech logo for 1.5 seconds
     display->setTextWrap(false);
     display->setTextColor(display->color444(15,0,0));
+    display->fillRect(0, 0, display->width(), display->height(), DISPLAY_COLOR_BLACK);
+
     log_v("Showing logo");
-    display->fillRect(0, 0, display->width(), display->height(), COLOR_BLACK);
     for(uint8_t i = 1; i < 16; i++) {
-        display->drawBitmap(0, 0, TalTechLogo, 64, 32, COLOR_BLACK, display->color444(15,i,i));
+        display->drawBitmap(logo_left, logo_top, TalTechLogo, logo_width, logo_height, 
+            DISPLAY_COLOR_BLACK, display->color444(15,i,i));
         delay(50);
     }
     delay(1000);
     for(uint8_t i = 15; i > 1; i--) {
-        display->drawBitmap(0, 0, TalTechLogo, 64, 32, COLOR_BLACK, display->color444(15,i,i));
+        display->drawBitmap(logo_left, logo_top, TalTechLogo, logo_width, logo_height, 
+            DISPLAY_COLOR_BLACK, display->color444(15,i,i));
         delay(50);
     }
     log_v("Logo hidden");
 
     // Clear the screen 
-    display->fillRect(0, 0, display->width(), display->height(), COLOR_BLACK);
+    display->fillRect(0, 0, display->width(), display->height(), DISPLAY_COLOR_BLACK);
     delay(500);
 }
 
@@ -97,11 +111,13 @@ void matrix_init(uint16_t resX, uint16_t resY, uint8_t chain) {
     mxconfig.driver = HUB75_I2S_CFG::FM6126A;
 
     // Display Setup
-    display = new MatrixPanel_I2S_DMA(mxconfig);
-    display->begin();
-    display->setBrightness8(30); //0-255
+    dma_display = new MatrixPanel_I2S_DMA(mxconfig);
+    dma_display->begin();
+    dma_display->setBrightness8(30); //0-255
+    display = new VirtualMatrixPanel(*dma_display, NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y, SERPENT, TOPDOWN);
+
     display->clearScreen();
-    display->fillScreen(COLOR_BLACK);
+    display->fillScreen(DISPLAY_COLOR_BLACK);
 
     display->setTextSize(1);     // size 1 == 8 pixels high
     display->setTextWrap(true); // Don't wrap at end of line - will do ourselves
@@ -162,7 +178,7 @@ void waiting_times_show(BusStopData& timetable) {
                 cvsTimesToWait->print(minutesToWait);
             }
         } else {
-            cvsTimesToWait->drawRoundRect(0, 0, TIMES_W, TIMES_H, 3, COLOR_RED);
+            cvsTimesToWait->drawRoundRect(0, 0, TIMES_W, TIMES_H, 3, DISPLAY_COLOR_RED);
         }
     }
     display->drawBitmap(TIMES_X, TIMES_Y, cvsTimesToWait->getBuffer(), TIMES_W, TIMES_H, display->color444(15,0,0), 0);
@@ -190,7 +206,7 @@ void clock_show() {
         timeColon = !timeColon;
         int x = display->width() - bw * 2 - 3;
         int y = display->height() - bh;
-        display->fillRect(x, y, bw * 2 + 3, bh, COLOR_BLACK);
+        display->fillRect(x, y, bw * 2 + 3, bh, DISPLAY_COLOR_BLACK);
 
         uint8_t h;
         uint8_t m;

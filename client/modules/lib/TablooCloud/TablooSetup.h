@@ -63,14 +63,20 @@ const char* SETUP_KEY_GSM_USER = "gsm_user";
 const char* SETUP_KEY_GSM_PASS = "gsm_pass";
 const char* SETUP_KEY_STOP_CODE = "stop";
 
+const char* SETUP_KEY_WIFI_SSID = "ssid";
+const char* SETUP_KEY_WIFI_PASS = "pass";
 
-const uint8_t SETUP_POSSIBLE_KEYS_COUNT = 5;
+
+
+const uint8_t SETUP_POSSIBLE_KEYS_COUNT = 7;
 const char *SETUP_POSSIBLE_KEYS[] = {
     SETUP_KEY_GSM_APN, 
     SETUP_KEY_GSM_PIN, 
     SETUP_KEY_GSM_USER, 
     SETUP_KEY_GSM_PASS,
-    SETUP_KEY_STOP_CODE
+    SETUP_KEY_STOP_CODE,
+    SETUP_KEY_WIFI_SSID,
+    SETUP_KEY_WIFI_PASS
 };
 
 char setupValue[256] = {0};

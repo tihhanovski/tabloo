@@ -32,6 +32,10 @@ uint8_t buffer[I2C_TARGET_BUFFER_SIZE];
 void (*i2ctarget_onDataRequested)() = nullptr;
 void (*i2ctarget_onCommand)(uint8_t* data, size_t len) = nullptr;
 
+
+//uint8_t packetTypeReceived = UART_PACKET_TYPE_UNDEFINED;
+//bool bDataRequested;
+
 // function that runs whenever the master sends an empty packet.
 // this function is registered as an event, see setup().
 // do not perform time-consuming tasks inside this function,

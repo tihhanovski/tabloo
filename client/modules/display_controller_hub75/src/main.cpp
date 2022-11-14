@@ -7,10 +7,23 @@
 
 #include <Arduino.h>
 
+// Wifi debug and OTA
+// #define WIFIDEV_SSID "k10-firstfloor"
+// #define WIFIDEV_PASS "aPustiKaV1nternet"
+// #define WIFIDEV_HOST "display4"
+// #define WEBSOCKET_DISABLED
+// #include <WifiDev.h>
+
+
 #define MATRIX_HUB75_ENABLED true
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
 #define PANEL_RES_Y 32      // Number of pixels tall of each INDIVIDUAL panel module.
-#define PANEL_CHAIN 1       // Total number of panels chained one to another
+#define PANEL_CHAIN 4       // Total number of panels chained one to another
+
+#define NUM_ROWS 2
+#define NUM_COLS 2
+#define SERPENT true
+#define TOPDOWN false
 
 #define SAVED_TIMETABLE_FILE "/timetable.bin"
 
@@ -84,12 +97,12 @@ void executeCommand(uint8_t* msg, uint32_t msgLength) {
     cmdText[msgLength] = 0;
     log_v("command %s", cmdText);
 
-    display->fillRect(0, 24, 64, 8, COLOR_BLACK);
-    display->setTextColor(COLOR_RED);
+    display->fillRect(0, 24, 64, 8, DISPLAY_COLOR_BLACK);
+    display->setTextColor(DISPLAY_COLOR_RED);
     display->setCursor(0, 24);
     String s = String((char*)cmdText);
     display->print(s);
-    display->drawRect(0, 24, 64, 8, COLOR_RED);
+    display->drawRect(0, 24, 64, 8, DISPLAY_COLOR_RED);
 
     if(!strcmp((const char*)cmdText, CMD_REBOOT)) {
         log_i("will reboot");
@@ -134,6 +147,9 @@ void setup() {
 
     Serial.begin(115200);
 
+    // WifiDev
+    // wifidev_setup(WIFIDEV_SSID, WIFIDEV_PASS, WIFIDEV_HOST);
+
     // UART
     SerialPort.begin(UART_SPEED, SERIAL_8N1, UART_RX, UART_TX);
     uartt.setOnMessageReceived(onMessageReceived);
@@ -145,14 +161,17 @@ void setup() {
     if(SPIFFS.begin(true)){
         File file = SPIFFS.open(SAVED_TIMETABLE_FILE);
         if(file) {
-            log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, file.available());
             dataSize = file.available();
-            data = new uint8_t[dataSize];
-            file.read(data, dataSize);
-            file.close();
-            log_v("Timetables data initialized from saved file");
-            timetable.initialize((char*)data);
-            matrix_startScrolls(timetable);
+            if(dataSize) {
+                log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, dataSize);
+                data = new uint8_t[dataSize];
+                file.read(data, dataSize);
+                file.close();
+                log_v("Timetables data initialized from saved file");
+                timetable.initialize((char*)data);
+                matrix_startScrolls(timetable);
+            } else
+                log_e("File %s is empty", SAVED_TIMETABLE_FILE);
         } else
             log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
     } else
@@ -168,5 +187,10 @@ void loop() {
         matrix_loop(timetable);
 
     uartt.loop();
-    delay(50);
+
+    // WifiDev
+    // wifidev_loop();
+
+
+    //delay(50);
 }
