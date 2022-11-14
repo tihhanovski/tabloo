@@ -18,7 +18,7 @@ class Importer {
 
     public function exportToMQTT($stopId) {
         echo $stopId . "\n";
-        $mqtt = app()->mqtt();
+        $mqtt = app()->mqtt($stopId);
         if ($mqtt->connect(true, NULL, MQTT_USER, MQTT_PASSWORD)) {
 
             //build data to export

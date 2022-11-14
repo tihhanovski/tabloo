@@ -15,6 +15,7 @@
     */
 
     require_once "Importer.php";
+    require_once "sql.php";
 
     class Application {
 
@@ -28,9 +29,9 @@
 
         private $_mqtt;
 
-        public function mqtt() {
+        public function mqtt($clientId) {
             if(!isset($this->_mqtt)) {
-                $this->_mqtt = new \Bluerhinos\phpMQTT(MQTT_SERVER, MQTT_PORT, MQTT_CLIENTID);
+                $this->_mqtt = new \Bluerhinos\phpMQTT(MQTT_SERVER, MQTT_PORT, $clientId);
             }
             return $this->_mqtt;
         }
