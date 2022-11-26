@@ -36,8 +36,8 @@ void networking_start() {
 }
 
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 3600 * 2;
-const int   daylightOffset_sec = 3600;
+const long  gmtOffset_sec = 0; //3600 * 2;
+const int   daylightOffset_sec = 0; //= 3600;
 
 void printLocalTime(){
     struct tm timeinfo;

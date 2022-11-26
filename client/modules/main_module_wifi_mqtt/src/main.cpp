@@ -15,7 +15,6 @@
 #define UART_SPEED 9600 //15200
 
 
-
 //I2C
 #define I2C_SDA              21
 #define I2C_SCL              22
@@ -56,7 +55,7 @@ void sendTimeToTargets() {
     }
     uint8_t p[8] = {UART_PACKET_TYPE_CURRENTTIME, 0, 0, 0, 0, 0, 0, 0};
     getDateTime(p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-    log_v("Will send to targets: %d.%d.%d %d:%d:%d +%d", p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+    log_i("Will send to targets: %d.%d.%d %d:%d:%d +%d", p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
     if(p[1] > 4) {
         log_v("Send time to I2C targets");
         i2c_write(p, 8);

@@ -60,8 +60,7 @@ public:
         seconds = rtc.getSecond();
         offset = rtc.offset / 900;
 
-        //log_v("")
-
+        log_v("time set: %d-%d-%d %02d:%02d:%02dZ%d", year, month, day, hours, minutes, seconds, offset);
     }
 };
 
