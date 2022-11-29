@@ -84,13 +84,14 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
 
     switch(type) {
         case UART_PACKET_TYPE_CURRENTTIME:
-            if(msgLength < 7) {
+            if(msgLength != TIME_PACKET_SIZE) {
                 log_e("Wrong message length %d", msgLength);
                 break;
             }
             log_v("Setting current time");
-            setDateTime(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6]);
+            // setDateTime(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6]);
             // TODO matrix_resetCurrentTime();
+            time_init_by_packet(msg);
             break;
         case UART_PACKET_TYPE_TIMETABLE:
             log_v("Timetable received %d bytes", msgLength);

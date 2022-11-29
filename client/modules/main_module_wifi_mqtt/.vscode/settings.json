@@ -2,6 +2,7 @@
     "C_Cpp.errorSquiggles": "Enabled",
     "files.associations": {
         "*.tpp": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "ctime": "cpp"
     }
 }

@@ -12,6 +12,18 @@
 
 #define WIFI_NETWORKING_CONNECT_TIMEOUT 10000
 
+#ifndef TIME_NTP_SERVER
+#define TIME_NTP_SERVER "pool.ntp.org"
+#endif
+
+#ifndef TIME_TIMEZONE_OFFSET_GMT_SEC
+#define TIME_TIMEZONE_OFFSET_GMT_SEC 7200
+#endif
+
+#ifndef TIME_DST_OFFSET_SEC
+#define TIME_DST_OFFSET_SEC 0
+#endif
+
 #include <Arduino.h>
 //#include <ArduinoHttpClient.h>  //see https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
 #include <TablooGeneral.h>      //Various utilities
@@ -34,10 +46,6 @@ void networking_start() {
     } else
         log_e("No SSID in provided, please setup and restart");
 }
-
-const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 0; //3600 * 2;
-const int   daylightOffset_sec = 0; //= 3600;
 
 void printLocalTime(){
     struct tm timeinfo;
@@ -73,11 +81,16 @@ void printLocalTime(){
     Serial.println();
 }
 
-SimpleDateTime networking_request_datetime() {
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    SimpleDateTime ret;
-    ret.setupByRTC();
-    return ret;
+/**
+ * @brief setup RTC
+*/
+void networking_request_datetime() {
+
+    //sync time using NTP
+    configTime(TIME_TIMEZONE_OFFSET_GMT_SEC, TIME_DST_OFFSET_SEC, TIME_NTP_SERVER);
+    // SimpleDateTime ret;
+    // ret.setupByRTC();
+    // return ret;
 }
 
 boolean networking_is_connected() {

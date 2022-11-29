@@ -14,6 +14,10 @@
 #define UART_TX 32
 #define UART_SPEED 9600 //15200
 
+// NTP settings
+#define TIME_TIMEZONE_OFFSET_GMT_SEC 7200    // 2 hours
+#define TIME_DST_OFFSET_SEC 3600             // 1 hour
+// #define TIME_NTP_SERVER "pool.ntp.org"   // change to use own ntp server
 
 //I2C
 #define I2C_SDA              21
@@ -22,7 +26,7 @@
 
 #define UPLOAD_BUFFER_MAX_SIZE 1024
 
-#define TIMER_SYNC_INTERVAL 100000
+#define TIMER_SYNC_INTERVAL 120000  // every two minutes
 
 
 #include <Arduino.h>
@@ -114,14 +118,6 @@ void onInputReceived(char* topic, char* data, size_t len) {
     sendToTarget(*data, data + 1, len - 1);
 }
 
-void sendTime(const SimpleDateTime& dt) {
-    log_v("Send time to display");
-    uint8_t packet[7] = {dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds, dt.offset};
-    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, 7);
-
-    sendTimeToTargets();
-}
-
 void syncTime() {
     static unsigned long nextTimeSyncMillis = 0;
     unsigned long t = millis();
@@ -129,8 +125,15 @@ void syncTime() {
         return;
     nextTimeSyncMillis = t + TIMER_SYNC_INTERVAL;
     log_v("Sync time");
-    SimpleDateTime time = networking_request_datetime();
-    sendTime(time);
+    // SimpleDateTime time = 
+    networking_request_datetime();
+
+    //send time to display (UART)
+    uint8_t packet[TIME_PACKET_SIZE] = {0};
+    time_setup_packet(packet);
+    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, TIME_PACKET_SIZE);
+
+    // TODO sendTimeToTargets();
 }
 
 void readDataFromTargets() {
