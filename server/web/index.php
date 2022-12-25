@@ -45,19 +45,22 @@
 
             "loadStops": function(id)
             {
-                var d = $("#stops_" + id.replace(/ /g, '_'));
-                console.log("#stops_" + id.replace(/ /g, '_'));
-                if(d.html() == "")
+                var dx = $("#stops_" + id.replace(/ /g, '_'));
+                // console.log("#stops_" + id.replace(/ /g, '_'));
+                if(dx.html() == "")
                     $.get("fpdata.php?m=stop&a=" + encodeURI(id), function(data){
                         for(i = 0; i < data.length; i++)
                         {
-                            var url = 'ask/?c=' + encodeURI(data[i].code);
-                            d.append('<div><a href="' + url + '" target="_blank">' + data[i].code + '</a> <a href="' + url + '&h=1" target="_blank">' + data[i].name + '</a>' +
+                            var d = data[i];
+                            var url = 'ask/?c=' + encodeURI(d.code);
+                            dx.append('<div><a href="' + url + '" target="_blank">' + d.code + '</a> '
+                                + '<a href="' + url + '&h=1" target="_blank">' + d.name 
+                                + (d.memo !== '' ? ' (' + d.memo + ')' : '') + '</a>' +
                                 '</div>');
                         }
                     }, "json");
                 else
-                    d.html("");
+                    dx.html("");
             }
         };
 

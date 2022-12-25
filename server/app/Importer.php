@@ -1,5 +1,9 @@
 <?php namespace Tabloo\app;
 
+const STOPDATA_FORMAT_BIN = "bin";
+const STOPDATA_FORMAT_JSON = "json";
+const STOPDATA_FORMAT_TAB = "tab";
+
 const SQL_STOP_TIMES = "select stop_id, arrival_time, route_short_name, trip_long_name, trip_headsign, wdmask 
     from vw_stopdata 
     where stop_id = :stopId
@@ -71,14 +75,12 @@ class Importer {
             throw new Exception ("Stop $stopCode is not enabled");
     }
 
-
-    public function exportToMQTT($stopId) {
+    public function exportToMQTT($stopId, $format = STOPDATA_FORMAT_BIN) {
         echo $stopId . "\n";
         $mqtt = app()->mqtt($stopId);
         if ($mqtt->connect(true, NULL, MQTT_USER, MQTT_PASSWORD)) {
 
             //build data to export
-            //Format description: https://github.com/tihhanovski/tabloo/wiki/Server#andmete-v%C3%A4ljastamine-seadmetesse
             $ldi = 0;
             $lineData = array();
             $lineNames = array();
@@ -87,12 +89,16 @@ class Importer {
 
             $params = array("stopId" => $stopId);
 
-            $stData = app()->db()->prepare(SQL_STOP_DATA);
+            $db = app()->db();
+
+            $stData = $db->prepare(SQL_STOP_DATA);
             $stData->execute($params);
             $stopData = $stData->fetchObject();
             $mqttTopic = MQTT_STOPS_TOPIC . $stopData->stop_code;
 
-            $stTimetable = app()->db()->prepare(SQL_STOP_TIMES);
+            $stopName = trim($stopData->stop_name . " " . $stopData->stop_desc);
+
+            $stTimetable = $db->prepare(SQL_STOP_TIMES);
             $stTimetable->execute($params);
 
             while($row = $stTimetable->fetchObject()) {
@@ -113,20 +119,17 @@ class Importer {
             }
             $stc = count($stopTimes);
 
-            // $timetableOutput =
-            //     //chr((int)date("H")) . chr((int)date("i")) . chr((int)date("s"))       //current time in seconds - 3 bytes
-            //       chr(count($lineNames))                                              //count of lines
-            //     . implode($lineNames, "")                                             //line names
-            //     . chr(floor($stc / 256)) . chr($stc % 256)                            //count of times
-            //     . implode($stopTimes, "");                                            //times
-
             $pkg = new MQTTPackage(
                 PACKAGE_TARGET_DISPLAY, 
                 PACKAGE_TYPE_TIMETABLE, 
-                chr(count($lineNames))                                              //count of lines
-                . implode($lineNames, "")                                             //line names
-                . chr(floor($stc / 256)) . chr($stc % 256)                            //count of times
-                . implode($stopTimes, "")
+                chr(count($lineNames))          // 0    count of lines
+                . chr(floor($stc / 256))        // 1    count of times MSB
+                . chr($stc % 256)               // 2    count of times LSB
+                . chr(8)                        // 3    TZ (hours * 4)  TODO
+                . chr(1)                        // 4    DST             TODO
+                . $stopName . "\0"              // 5    stop name
+                . implode($lineNames, "")       //      line names
+                . implode($stopTimes, "")       //      timetable
             );
             $pkg->validate();
 

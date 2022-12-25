@@ -1,0 +1,10 @@
+{
+    "description": "Estonian GTFS import plugin",
+    "cronjobs": [
+        {
+            "name": "importer",
+            "script": "cron.php",
+            "freq": "d 01:02"
+        }
+    ]    
+}
