@@ -14,7 +14,10 @@
 #define UART_TX 32
 #define UART_SPEED 9600 //15200
 
-
+// NTP settings
+#define TIME_TIMEZONE_OFFSET_GMT_SEC 7200    // 2 hours
+#define TIME_DST_OFFSET_SEC 3600             // 1 hour
+// #define TIME_NTP_SERVER "pool.ntp.org"   // change to use own ntp server
 
 //I2C
 #define I2C_SDA              21
@@ -23,7 +26,7 @@
 
 #define UPLOAD_BUFFER_MAX_SIZE 1024
 
-#define TIMER_SYNC_INTERVAL 100000
+#define TIMER_SYNC_INTERVAL 120000  // every two minutes
 
 
 #include <Arduino.h>
@@ -38,9 +41,6 @@
 #include <TablooSetup.h>
 #include <TablooI2C.h>
 #include <time.h>
-
-const char* MQTT_INPUT_SUBTOPIC_TIMETABLE = "timetable";
-const char* MQTT_INPUT_SUBTOPIC_TARGETS = "targets";
 
 HardwareSerial SerialPort(2); // use UART2
 UARTIO io(SerialPort);
@@ -59,7 +59,7 @@ void sendTimeToTargets() {
     }
     uint8_t p[8] = {UART_PACKET_TYPE_CURRENTTIME, 0, 0, 0, 0, 0, 0, 0};
     getDateTime(p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-    log_v("Will send to targets: %d.%d.%d %d:%d:%d +%d", p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+    log_i("Will send to targets: %d.%d.%d %d:%d:%d +%d", p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
     if(p[1] > 4) {
         log_v("Send time to I2C targets");
         i2c_write(p, 8);
@@ -74,48 +74,48 @@ void onTargetsListReceived(char* data, size_t dataSize) {
         log_v("\t%d", (uint8_t)data[i]);
     i2c_save_list(data, dataSize);
     log_v("targets data saved");
-    // TODO send data to slave
+    // TODO send time to targets
     sendTimeToTargets();
 }
 
-void onCommandReceived(char* data, size_t dataSize) {
-    log_v("Command received");
-    //first byte of command is address
-    switch (data[0])
-    {
-        case 0:     //command for main controller
-            log_i("TODO Command for main controller received: '%s'", data + 1);
-            break;
-        case 1:     //command for display. Will be sent over UART
-            log_v("Command for display");
-            uartt.write(UART_PACKET_TYPE_COMMAND, (uint8_t*)(data + 1), dataSize - 1);
-            log_v("sent %d bytes", dataSize);
-            break;
-        default:    //other, I2C target assumed
-            byte targetAddr = (byte)data[0];
-            data[0] = UART_PACKET_TYPE_COMMAND; //TODO bad style
-            log_i("Command for I2C target %d", targetAddr);
-            i2c_write(targetAddr, (uint8_t*)(data), dataSize);
-            data[0] = targetAddr; //TODO bad style
-            break;
+void processLocalInput(char* data, size_t len) {
+    log_i("Input will be processed '%s': %d bytes", data, len);
+    uint8_t type = *data;
+    if(type == PACKET_TYPE_TARGETSLIST)
+        return onTargetsListReceived(data + 1, len - 1);
+    if(type == UART_PACKET_TYPE_COMMAND) {
+        // TODO
+        log_i("TODO Command for main controller received: '%s'", data + 1);
+        return;
     }
 }
 
-void onInputReceived(char* topic, char* data, size_t len) {
-    log_v("Input received '%s' >> '%s'", topic, data);
-    if(!strcmp(topic, MQTT_INPUT_SUBTOPIC_TIMETABLE))
-        return onTimetableReceived(data, len);
-    if(!strcmp(topic, MQTT_INPUT_SUBTOPIC_TARGETS))
-        return onTargetsListReceived(data, len);
-    return onCommandReceived(data, len);
+void sendToUART(char* data, size_t len) {
+    log_i("Data for display will be sent via UART");
+    uartt.write(*data, (uint8_t*)(data + 1), len - 1);
+    log_i("sent %d bytes", len);
 }
 
-void sendTime(const SimpleDateTime& dt) {
-    log_v("Send time to display");
-    uint8_t packet[7] = {dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds, dt.offset};
-    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, 7);
+void sendToTarget(uint8_t target, char* data, size_t len) {
+    i2c_write(target, (uint8_t*)(data), len);
+}
 
-    sendTimeToTargets();
+void onInputReceived(char* topic, char* data, size_t len) {
+    if(len < 2) {
+        log_e("Received wrong input. Too short");
+        return;
+    }
+    uint8_t target = *data;
+    log_i("Input received '%s' >> '%s': %d bytes. Target=%d, type=%d ", topic, data, len, target, *(data + 1));
+
+    if(target == 0) // main controller, self
+        return processLocalInput(data + 1, len - 1);
+
+    if(target == 1) // display controller, UART
+        return sendToUART(data + 1, len - 1);
+
+    // All other targets considered as I2C
+    sendToTarget(*data, data + 1, len - 1);
 }
 
 void syncTime() {
@@ -124,29 +124,16 @@ void syncTime() {
     if(nextTimeSyncMillis > t)
         return;
     nextTimeSyncMillis = t + TIMER_SYNC_INTERVAL;
-    log_v("Sync time with mobile network");
+    log_v("Sync time");
+    // SimpleDateTime time = 
+    networking_request_datetime();
 
-    SimpleDateTime time = networking_request_datetime();
+    //send time to display (UART)
+    uint8_t packet[TIME_PACKET_SIZE] = {0};
+    time_setup_packet(packet);
+    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, TIME_PACKET_SIZE);
 
-    // byte per field (year - 2000)
-    // y-m-d-h-m-s-z
-
-    //setDateTime(time.year, time.month, time.day, time.hours, time.minutes, time.seconds, time.offset);
-
-    /*
-        log_v("Will config time using NTP");
-        configTime(3 * 3600, 0, "pool.ntp.org");
-
-        struct tm timeinfo;
-        if(getLocalTime(&timeinfo)) {
-            log_i("local time: %d-%d-%d %d:%d:%d", timeinfo.tm_year, timeinfo.tm_mon, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-        }else{
-            Serial.println("Failed to obtain time");
-        }
-        log_v("Configured time using NTP");
-    */
-
-    sendTime(time);
+    // TODO sendTimeToTargets();
 }
 
 void readDataFromTargets() {
@@ -182,11 +169,6 @@ void readDataFromTargets() {
 }
 
 void setup() {
-
-    // ???
-    esp_log_level_set("wifi", ESP_LOG_WARN);
-    esp_log_level_set("ssl", ESP_LOG_WARN);
-
     Serial.begin(115200);
 
     delay(3000);

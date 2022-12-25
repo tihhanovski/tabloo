@@ -6,18 +6,101 @@
  *
  */
 
+#define TIME_PACKET_SIZE 5
+
 #ifndef _TABLOO_TIME_H_
 #define _TABLOO_TIME_H_
 
-#ifndef TABLOOTIME_DEFAULT_OFFSET
-#define TABLOOTIME_DEFAULT_OFFSET 3600 * 3 // Estonia = UTC+3
+#ifndef TIME_TIMEZONE_OFFSET_GMT_SEC
+#define TIME_TIMEZONE_OFFSET_GMT_SEC 7200
+#endif
+
+#ifndef TIME_DST_OFFSET_SEC
+#define TIME_DST_OFFSET_SEC 0
 #endif
 
 #include <Arduino.h>
 #include <ESP32Time.h>
 
-ESP32Time rtc(TABLOOTIME_DEFAULT_OFFSET);
+ESP32Time rtc(TIME_TIMEZONE_OFFSET_GMT_SEC);
 bool rtc_time_initialized = false;
+
+void getHourAndMinute(uint8_t& h, uint8_t& m) {
+    m = rtc.getMinute();
+    h = rtc.getHour(true);
+}
+
+/**
+ * @brief packs unix epoch time, tz and dst offset to 5 bytes where:
+ * bytes 0 - 3 - timestamp,
+ * byte 4:
+ *      bit 7 - dst on/off = dst / 3600;
+ *      other bits - tz offset in seconds / 900 ie TZ offset with 15 minutes precision
+*/
+void time_setup_packet(uint8_t packet[TIME_PACKET_SIZE]) {
+    time_t now;     //time_t should be 4 bytes long
+    time(&now);
+    for(int8_t i = 3; i >= 0; i--) {
+        packet[i] = now & 255;
+        now = now >> 8;
+    }
+
+    packet[4] = (TIME_TIMEZONE_OFFSET_GMT_SEC / 900)    // timezone offst 0 .. 96
+        | (TIME_DST_OFFSET_SEC ? 128 : 0);
+
+    log_v("time packet %02x %02x %02x %02x %02x", packet[0], packet[1], packet[2], packet[3], packet[4], packet[5]);
+
+    // timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, timeinfo.tm_wday, 
+}
+
+/**
+ * @brief unpacks time packet to setup current datetime
+*/
+void time_init_by_packet(uint8_t packet[TIME_PACKET_SIZE]) {
+    unsigned long epoch = 0;
+    for(int8_t i = 0; i < 4; i++)
+        epoch = (epoch << 8) | packet[i];
+
+    struct timezone tz;
+    tz.tz_minuteswest = 900 * (int)(packet[4] & 127);
+    tz.tz_dsttime = DST_EET;
+
+    
+    // long epoch = SOME_TIME;
+    struct timeval tv;
+    if (epoch > 2082758399){
+        // overflow = true;
+        tv.tv_sec = epoch - 2082758399;  // epoch time (seconds)
+    } else {
+        tv.tv_sec = epoch;  // epoch time (seconds)
+    }
+    tv.tv_usec = 0;    // microseconds
+    settimeofday(&tv, &tz);
+
+    log_i("current time set to %d, tz offset=%d, DST=%d", epoch, tz.tz_minuteswest, tz.tz_dsttime);
+
+    rtc_time_initialized = true;
+
+    uint8_t m, h;
+    getHourAndMinute(h, m);
+    log_i("time is %02d:%02d", h, m);
+
+    // TODO proper DST setup
+    // struct timezone {
+    // 	int	tz_minuteswest;	/* minutes west of Greenwich */
+    // 	int	tz_dsttime;	/* type of dst correction */
+    // };
+    // #define	DST_NONE	0	/* not on dst */
+    // #define	DST_USA		1	/* USA style dst */
+    // #define	DST_AUST	2	/* Australian style dst */
+    // #define	DST_WET		3	/* Western European dst */
+    // #define	DST_MET		4	/* Middle European dst */
+    // #define	DST_EET		5	/* Eastern European dst */
+    // #define	DST_CAN		6	/* Canada */
+    
+}
+
+
 
 struct SimpleDateTime {
     uint8_t year = 0;
@@ -60,8 +143,7 @@ public:
         seconds = rtc.getSecond();
         offset = rtc.offset / 900;
 
-        //log_v("")
-
+        log_v("time set: %d-%d-%d %02d:%02d:%02dZ%d", year, month, day, hours, minutes, seconds, offset);
     }
 };
 
@@ -84,10 +166,6 @@ bool isTimeInitialized() {
     return rtc_time_initialized;
 }
 
-void getHourAndMinute(uint8_t& h, uint8_t& m) {
-    m = rtc.getMinute();
-    h = rtc.getHour(true);
-}
 
 // TODO: Bad code, read about timezones and write better
 void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second) {

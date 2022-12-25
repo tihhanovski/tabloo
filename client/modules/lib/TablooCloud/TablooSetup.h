@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <SerialInput.h>
+#include <TablooBLESetup.h>
 
 Preferences preferences;
 
@@ -19,6 +20,10 @@ Preferences preferences;
 #endif
 #ifndef SETUP_TIMEOUT_PAUSE
 #define SETUP_TIMEOUT_PAUSE 30000
+#endif
+
+#ifndef SETUP_BLE_ENABLED
+#define SETUP_BLE_ENABLED false
 #endif
 
 #ifndef SETUP_NAME
@@ -108,9 +113,7 @@ void processCommand(char *command)
     char *arg1;
     char *arg2;
 
-    Serial.print("Received command '");
-    Serial.print(command);
-    Serial.println("'");
+    log_i("Received command '%s'", command);
 
     if (!strcmp(CMD_SETUP_LIST, command)) {
         Serial.println("Setup list:");
@@ -180,14 +183,22 @@ void processCommand(char *command)
 
 SerialInput serialInput(processCommand);
 
+#if SETUP_BLE_ENABLED
+TablooBLESetup bleInput(processCommand);
+#endif
+
 void setup_start()
 {
-    log_v("Setup button pin: %d, LED pin: %d", SETUP_BUTTON_PIN, SETUP_LED_PIN);
-    log_v("Preferencies name: '%s'", SETUP_NAME);
+    log_i("Setup button pin: %d, LED pin: %d", SETUP_BUTTON_PIN, SETUP_LED_PIN);
+    log_i("Preferencies name: '%s'", SETUP_NAME);
 
     pinMode(SETUP_BUTTON_PIN, INPUT_PULLUP);
     pinMode(SETUP_LED_PIN, OUTPUT);
     preferences.begin(SETUP_NAME, false);
+
+    #if SETUP_BLE_ENABLED
+    bleInput.start();
+    #endif
 }
 
 void setup_loop()

@@ -1,3 +1,6 @@
+#ifndef _BUSSTOPDATA_H_
+#define _BUSSTOPDATA_H_
+
 /**
  * Tabloo - opensource bus stop display
  * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
@@ -164,3 +167,5 @@ public:
 
     }
 };
+
+#endif
