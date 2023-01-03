@@ -1,4 +1,6 @@
-<?php namespace Tabloo\app;
+<?php 
+
+namespace Tabloo\app;
 
     require '../vendor/autoload.php';
 

@@ -154,10 +154,10 @@ void waiting_times_show(BusStopData& timetable) {
         nextTimeWait = t + TIMES_RECALC_WAIT;       // Recalculate every 30 seconds
 
 
-        if(isTimeInitialized()) {
+        if(time_is_initialized()) { //isTimeInitialized()
             uint8_t h;
             uint8_t m;
-            uint8_t dow = getDayOfWeek();
+            uint8_t dow = time_get_day_of_week(); //getDayOfWeek();
             getHourAndMinute(h, m);
             log_v("recalculating times for %d:%d, dow=%d", h, m, dow);
 
@@ -214,7 +214,7 @@ void clock_show() {
 
         String hh, mm;
 
-        if(isTimeInitialized()) {
+        if(time_is_initialized()) {  //isTimeInitialized()
             hh = (h < 10 ? "0" : "") + String(h);
             mm = (m < 10 ? "0" : "") + String(m);
         } else {

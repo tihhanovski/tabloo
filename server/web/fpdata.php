@@ -44,7 +44,8 @@ if($method == "area")
 if($method == "stop")
 {
     $ret = array();
-    $sql = "select distinct stop_id as id, stop_code as code, stop_name as name from stops where stop_area = '" . $mysqli->real_escape_string($argument) . "' order by stop_code";
+    $sql = "select distinct stop_id as id, stop_code as code, stop_name as name, stop_desc as memo 
+        from stops where stop_area = '" . $mysqli->real_escape_string($argument) . "' order by stop_code";
     if($rst = $mysqli->query($sql))
     {
         while($a = $rst->fetch_object())

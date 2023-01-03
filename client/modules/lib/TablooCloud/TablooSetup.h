@@ -21,33 +21,13 @@ Preferences preferences;
 #define SETUP_TIMEOUT_PAUSE 30000
 #endif
 
+#ifndef SETUP_BLE_ENABLED
+#define SETUP_BLE_ENABLED false
+#endif
+
 #ifndef SETUP_NAME
 #define SETUP_NAME "tabloo"
 #endif
-
-boolean setupState = false;
-boolean setupLedOn = false;
-unsigned long setupBlinkTimer = 0;
-unsigned long setupIdleTimer = 0;
-
-void resetSetupIdleTimer()
-{
-    setupIdleTimer = millis() + SETUP_TIMEOUT_PAUSE;
-}
-
-void blinkSetupLed()
-{
-    boolean newLedState;
-    if (setupState)
-        newLedState = !setupLedOn;
-    else
-        newLedState = false;
-    if (newLedState != setupLedOn)
-    {
-        setupLedOn = newLedState;
-        digitalWrite(SETUP_LED_PIN, setupLedOn);
-    }
-}
 
 const char *CMD_SETUP_RESET = "setup reset"; // Comand to reset setup
 const char *CMD_SETUP_SAVE = "setup save"; // Comand to save setup
@@ -79,6 +59,37 @@ const char *SETUP_POSSIBLE_KEYS[] = {
     SETUP_KEY_WIFI_PASS
 };
 
+
+#if SETUP_BLE_ENABLED
+#include <TablooBLESetup.h>
+#endif
+
+
+boolean setupState = false;
+boolean setupLedOn = false;
+unsigned long setupBlinkTimer = 0;
+unsigned long setupIdleTimer = 0;
+
+void resetSetupIdleTimer()
+{
+    setupIdleTimer = millis() + SETUP_TIMEOUT_PAUSE;
+}
+
+void blinkSetupLed()
+{
+    boolean newLedState;
+    if (setupState)
+        newLedState = !setupLedOn;
+    else
+        newLedState = false;
+    if (newLedState != setupLedOn)
+    {
+        setupLedOn = newLedState;
+        digitalWrite(SETUP_LED_PIN, setupLedOn);
+    }
+}
+
+
 char setupValue[256] = {0};
 
 char* setup_readStringValue(const char* key) {
@@ -95,6 +106,17 @@ char* setup_getStringValue(const char* key) {
     return ret;
 }
 
+void setup_putStringValue(const char* key, const char* val) {
+    log_v("key='%s', val='%s'", key, val);
+    if (strlen(key)) {
+        if(strlen(val))
+            preferences.putString(key, val);
+        else
+            preferences.remove(key);
+    } else
+        log_e("Arguments not given");
+}
+
 
 /**
  * Process command received
@@ -108,9 +130,7 @@ void processCommand(char *command)
     char *arg1;
     char *arg2;
 
-    Serial.print("Received command '");
-    Serial.print(command);
-    Serial.println("'");
+    log_i("Received command '%s'", command);
 
     if (!strcmp(CMD_SETUP_LIST, command)) {
         Serial.println("Setup list:");
@@ -156,14 +176,8 @@ void processCommand(char *command)
         Serial.print("' to '");
         Serial.print(arg2);
         Serial.println("'");
-
-        if (strlen(arg1)) {
-            if(strlen(arg2))
-                preferences.putString(arg1, arg2);
-            else
-                preferences.remove(arg1);
-        } else
-            log_e("Arguments not given");
+        
+        setup_putStringValue(arg1, arg2);
     }
 
 
@@ -180,14 +194,22 @@ void processCommand(char *command)
 
 SerialInput serialInput(processCommand);
 
+#if SETUP_BLE_ENABLED
+TablooBLESetup bleInput(processCommand, setup_getStringValue, setup_putStringValue);
+#endif
+
 void setup_start()
 {
-    log_v("Setup button pin: %d, LED pin: %d", SETUP_BUTTON_PIN, SETUP_LED_PIN);
-    log_v("Preferencies name: '%s'", SETUP_NAME);
+    log_i("Setup button pin: %d, LED pin: %d", SETUP_BUTTON_PIN, SETUP_LED_PIN);
+    log_i("Preferencies name: '%s'", SETUP_NAME);
 
     pinMode(SETUP_BUTTON_PIN, INPUT_PULLUP);
     pinMode(SETUP_LED_PIN, OUTPUT);
     preferences.begin(SETUP_NAME, false);
+
+    #if SETUP_BLE_ENABLED
+    bleInput.init();
+    #endif
 }
 
 void setup_loop()
@@ -198,6 +220,7 @@ void setup_loop()
         {
             log_v("Enter setup mode");
             setupState = true;
+            bleInput.start();
             resetSetupIdleTimer();
         }
     }
@@ -210,6 +233,8 @@ void setup_loop()
         {
             log_v("Timeout. Exit setup mode");
             setupState = false;
+            digitalWrite(SETUP_LED_PIN, 0);
+            bleInput.stop();
         }
 
         if (t > setupBlinkTimer)

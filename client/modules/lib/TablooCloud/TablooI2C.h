@@ -217,7 +217,6 @@ void i2c_task(void * pvParameters) {
     }
 }
 
-
 void i2c_start() {
     targetsMessageBuffer = xMessageBufferCreate(1024);
     if (targetsMessageBuffer == NULL) {

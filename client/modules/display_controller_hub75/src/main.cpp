@@ -89,7 +89,7 @@ void loadData(uint8_t* msg, uint32_t size) {
 
 boolean bLedOn = false;
 
-const char* CMD_REBOOT = "display reboot";
+const char* CMD_REBOOT = "reboot";
 
 void executeCommand(uint8_t* msg, uint32_t msgLength) {
     uint8_t* cmdText = new uint8_t[msgLength + 1];
@@ -117,12 +117,13 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
 
     switch(type) {
         case UART_PACKET_TYPE_CURRENTTIME:
-            if(msgLength < 7) {
+            if(msgLength != TIME_PACKET_SIZE) {
                 log_e("Wrong message length %d", msgLength);
                 break;
             }
             log_v("Setting current time");
-            setDateTime(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6]);
+            time_init_by_packet(msg);
+            // setDateTime(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6]);
             matrix_resetCurrentTime();
             break;
         case UART_PACKET_TYPE_TIMETABLE:

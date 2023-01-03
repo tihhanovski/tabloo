@@ -13,6 +13,7 @@
     </div>
     <script language="JavaScript">
 
+        const apiUrl = '/tablooapi/';
 
 
         var _app = {
@@ -20,24 +21,27 @@
             {
                 var auth = $("#authorities");
 
-                $.get("fpdata.php?m=authority", function(data){
-                    for(i = 0; i < data.length; i++)
-                        auth.append('<div><a href="Javascript:app().loadAreas(\'' + q(data[i]) + '\');">' + data[i] + '</a>' +
-                            '<div id="areas_' + q(data[i]).replace(/ /g, '_') + '" class="indent"></div></div>');
+                // const url = "fpdata.php?m=authority"
+                const url = apiUrl + 'authorities';
+
+                $.get(url, function(data){
+                    data.data.forEach(i => auth.append('<div><a href="Javascript:app().loadAreas(\'' + q(i) + '\');">' + i + '</a>' +
+                            '<div id="areas_' + q(i).replace(/ /g, '_') + '" class="indent"></div></div>'))
                 }, "json");
             },
 
             "loadAreas": function(id)
             {
                 var d = $("#areas_" + id.replace(/ /g, '_'));
+                //"fpdata.php?m=area&a=" + encodeURI(id)
+                const url = apiUrl + 'areas/' + encodeURIComponent(id)
+                console.log(url);
                 if(d.html() == "")
-                    $.get("fpdata.php?m=area&a=" + encodeURI(id), function(data){
-                        for(i = 0; i < data.length; i++)
-                        {
-                            d.append('<div><a href="JavaScript:app().loadStops(\'' + q(data[i]) + '\');">' + data[i] + '</a>' +
-                                '<div id="stops_' + q(data[i]).replace(/ /g, '_') + '" class="indent"></div>' +
-                                '</div>');
-                        }
+                    $.get(url, function(data){
+                        data.data.forEach(i => d.append('<div>' +
+                                '<a href="JavaScript:app().loadStops(\'' + q(i) + '\');">' + i + '</a>' +
+                                '<div id="stops_' + q(i).replace(/ /g, '_') + '" class="indent"></div>' +
+                                '</div>'));
                     }, "json");
                 else
                     d.html("");
@@ -45,19 +49,24 @@
 
             "loadStops": function(id)
             {
-                var d = $("#stops_" + id.replace(/ /g, '_'));
-                console.log("#stops_" + id.replace(/ /g, '_'));
-                if(d.html() == "")
-                    $.get("fpdata.php?m=stop&a=" + encodeURI(id), function(data){
-                        for(i = 0; i < data.length; i++)
+                var dx = $("#stops_" + id.replace(/ /g, '_'));
+                //"fpdata.php?m=stop&a=" + encodeURI(id)
+                const stopsUrl = apiUrl + 'stops/' + encodeURIComponent(id)
+
+                if(dx.html() == "")
+                    $.get(stopsUrl, function(data){
+                        for(i = 0; i < data.data.length; i++)
                         {
-                            var url = 'ask/?c=' + encodeURI(data[i].code);
-                            d.append('<div><a href="' + url + '" target="_blank">' + data[i].code + '</a> <a href="' + url + '&h=1" target="_blank">' + data[i].name + '</a>' +
+                            var d = data.data[i];
+                            var url = 'ask/?c=' + encodeURI(d.code);
+                            dx.append('<div><a href="' + url + '" target="_blank">' + d.code + '</a> '
+                                + '<a href="' + url + '&h=1" target="_blank">' + d.name 
+                                + (d.memo !== '' ? ' (' + d.memo + ')' : '') + '</a>' +
                                 '</div>');
                         }
                     }, "json");
                 else
-                    d.html("");
+                    dx.html("");
             }
         };
 
