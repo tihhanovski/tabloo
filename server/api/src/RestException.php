@@ -10,6 +10,10 @@ class RestException extends Exception {
     }
 }
 
+class TODOException extends RestException {
+    protected $httpCode = 404;
+}
+
 class BadRequestException extends RestException {
     protected $httpCode = 400;
 }

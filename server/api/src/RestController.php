@@ -19,18 +19,22 @@
 
 class RestController {
 
-    private array $endpoints;
+    private $endpoints;
 
     function __construct() {
         $this->endpoints = [
-            "qna" => "QuizEditEndpoint",
-            "publish" => "QuizPublishEndpoint",
-            "quiz" => "QuizEndpoint",
-            "answer" => "AnswerEndpoint",
+            "authorities" => "AuthoritiesEndpoint",
+            "areas" => "AreasEndpoint",
+            "stops" => "StopsEndpoint",
+            "moduletypes" => "MyModuletypesEndpoint",
+            "modulemessage" => "MyModuleMessageEndpoint",
+            "modules" => "MyModulesEndpoint",
+            "mymodulesoutput" => "MyModulesOutputEndpoint",
         ];
     }
 
     private function getEndpoint(string $name): RestEndpoint {
+        // app()->debug("ep: $name");
         if(!isset($this->endpoints[$name]))
             throw new NotFoundException("Endpoint \"$name\" not defined");
         $className = $this->endpoints[$name];
@@ -58,6 +62,7 @@ class RestController {
                 $allowedMethods = explode(",", strtolower(ALLOWED_HTTP_METHODS));
                 if(!in_array($method, $allowedMethods))
                     throw new MethodNotAllowedException("Method $method is not allowed");
+
 
                 $path = explode("/", app()->request("path"), 2);
                 $ep = $path[0];

@@ -5,4 +5,6 @@ CREATE TABLE sensors (
     activeFinish datetime,
     name varchar(100) not null,
     key idx_sensors_deviceId (deviceId)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE `sensors` ADD `ownerId` INT  DEFAULT NULL  AFTER `name`;

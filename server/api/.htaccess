@@ -8,4 +8,4 @@ RewriteEngine on
 #RewriteCond %{REQUEST_URI} !^/help\.php
 #RewriteCond %{REQUEST_URI} !^/logo64\.png
 
-RewriteRule "^([ +0-9a-zA-Z/_.]+)$"   index.php?request=$1 [nc,qsa]
+RewriteRule "^(.*)$"   index.php?path=$1 [nc,qsa]

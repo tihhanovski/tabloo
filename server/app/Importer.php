@@ -62,15 +62,13 @@ class Importer {
         $stEnabled = app()->db()->prepare(SQL_ENABLED_STOP_CHECK);
         $stEnabled->execute(array("stop_code" => $stopCode));
         if($row = $stEnabled->fetchObject()) {
-            //TODO publish
+            //publish
             $mqtt = app()->mqtt(MQTT_CLIENTID . "-importer");
             if(!$mqtt->connect(true, NULL, MQTT_USER, MQTT_PASSWORD))
                 throw new Exception ("Cant connect to MQTT broker");
             $mqttTopic = MQTT_STOPS_TOPIC . $stopCode . "/input/$topic";
             $msg = $pkg->produce();
             $mqtt->publish($mqttTopic, $msg, 1, false);
-    
-            echo "Package of type {$pkg->type} for target {$pkg->target} '{$pkg->data}' is published to $mqttTopic\n";
         } else
             throw new Exception ("Stop $stopCode is not enabled");
     }
