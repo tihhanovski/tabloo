@@ -7,6 +7,11 @@
 #ifndef _TABLOOBLESETUP_H_
 #define _TABLOOBLESETUP_H_
 
+#define TABLOO_BLE_NAME "Tabloo_v1"
+#define TABLOO_BLE_SERVICE_UUID "cc00"  //"AAAA"
+#define TABLOO_BLE_CHAR_APN_UUID "cc01" //"93a1cb91-0bc1-4e4f-87a4-090843cbc1f1"
+#define TABLOO_BLE_CHAR_GSM_PIN_UUID "cc02"
+
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 #define MAX_BLE_COMMAND_SIZE 100
@@ -72,23 +77,30 @@ class ServerCallbacks: public NimBLEServerCallbacks {
 class CharacteristicCallbacks: public NimBLECharacteristicCallbacks {
 
     void (*ble_onCommandReceived)(char* command) = nullptr;           // Command received
+    char* (*readSetupProperty)(const char* key) = nullptr;
+    void (*writeSetupProperty)(const char* key, const char* value) = nullptr;
 
     void onRead(NimBLECharacteristic* pCharacteristic){
         log_i("'%s' --> '%s'", pCharacteristic->getUUID().toString().c_str(), pCharacteristic->getValue().c_str());
     };
 
     void onWrite(NimBLECharacteristic* pCharacteristic) {
-        // Serial.print(pCharacteristic->getUUID().toString().c_str());
-        // Serial.print(": onWrite, value: ");
-        char* cmd = (char*)(pCharacteristic->getValue().c_str());
-        // Serial.println(cmd);
 
-        log_i("'%s' <-- '%s'", pCharacteristic->getUUID().toString().c_str(), cmd);
-         
-        if(ble_onCommandReceived != nullptr) {
-            log_i("send command %s", cmd);
-            ble_onCommandReceived(cmd);
+        const char* uuid = pCharacteristic->getUUID().toString().c_str() + 2;
+        const char* cmd = pCharacteristic->getValue().c_str();
+        log_i("'%s' <-- '%s'", uuid, cmd);
+
+        if(writeSetupProperty != nullptr) {
+            log_v("will compare '%s' and '%s' --> %i", uuid, TABLOO_BLE_CHAR_APN_UUID, strcmp(uuid, TABLOO_BLE_CHAR_APN_UUID));
+            if(!strcmp(uuid, TABLOO_BLE_CHAR_APN_UUID))
+                writeSetupProperty(SETUP_KEY_GSM_APN, cmd);
         }
+
+         
+        // if(ble_onCommandReceived != nullptr) {
+        //     log_i("send command %s", cmd);
+        //     ble_onCommandReceived(cmd);
+        // }
 
         // if(!strcmp(CMD_OPEN, cmd))
         //     onOpen();
@@ -137,10 +149,18 @@ class CharacteristicCallbacks: public NimBLECharacteristicCallbacks {
         Serial.println(str);
     };
 
-    public:
+public:
 
     void setCommandReceivedCallback(void (*commandReceivedCallback)(char* command)) {
         this->ble_onCommandReceived = commandReceivedCallback;
+    }
+
+    void setReadSetupProperty(char* (*readSetupProperty)(const char* key)) {
+        this->readSetupProperty = readSetupProperty;
+    }
+
+    void setWriteSetupProperty(void (*writeSetupProperty)(const char* key, const char* value)) {
+        this->writeSetupProperty = writeSetupProperty;
     }
 
 };
@@ -167,49 +187,77 @@ static NimBLEServer* pServer;
 
 class TablooBLESetup {
     // void (*ble_onCommandReceived)(char* command) = nullptr;           // Command received
+    NimBLEService* pSetupService;
+    char* (*readSetupProperty)(const char* key) = nullptr;
 public:
 
-    TablooBLESetup(void (*commandReceivedCallback)(char* command)) {
+    TablooBLESetup(
+        void (*commandReceivedCallback)(char* command),
+        char* (*readSetupProperty)(const char* key),
+        void (*writeSetupProperty)(const char* key, const char* value)
+        ) {
         // this->ble_onCommandReceived = commandReceivedCallback;
+        this->readSetupProperty = readSetupProperty;
+
         chrCallbacks.setCommandReceivedCallback(commandReceivedCallback);
+        chrCallbacks.setReadSetupProperty(readSetupProperty);
+        chrCallbacks.setWriteSetupProperty(writeSetupProperty);
     }
 
-    void start() {
-        Serial.println("Starting NimBLE Server");
+    void addPropChar(const char* uuid, const char* setupKey) {
+        NimBLECharacteristic* chr = pSetupService->createCharacteristic(
+                                                uuid,
+                                                NIMBLE_PROPERTY::READ |
+                                                NIMBLE_PROPERTY::WRITE |
+                                                NIMBLE_PROPERTY::NOTIFY
+                                                );
+        chr->setValue("----"); //readSetupProperty(setupKey)
+        chr->setCallbacks(&chrCallbacks);
+        log_v("callback set");
+}
 
-        /** sets device name */
-        NimBLEDevice::init("TablooMainController");
+    void init() {
+        
+        NimBLEDevice::init(TABLOO_BLE_NAME);
         log_v("initialized");
 
         NimBLEDevice::setSecurityAuth(/*BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM |*/ BLE_SM_PAIR_AUTHREQ_SC);
 
         pServer = NimBLEDevice::createServer();
-        pServer->setCallbacks(new ServerCallbacks());
+        // pServer->setCallbacks(new ServerCallbacks());
 
         log_v("server created");
     
-        NimBLEService* pSetupService = pServer->createService("AAAA");
-        NimBLECharacteristic* pSetupCharacteristic = pSetupService->createCharacteristic(
-                                                "AAAB",
-                                                NIMBLE_PROPERTY::READ |
-                                                NIMBLE_PROPERTY::WRITE |
-                                                NIMBLE_PROPERTY::NOTIFY
-                                                );
-        log_v("service created");
-
-        pSetupCharacteristic->setValue("--");
-        pSetupCharacteristic->setCallbacks(&chrCallbacks);
-        log_v("callback set");
+        pSetupService = pServer->createService(TABLOO_BLE_SERVICE_UUID);
+        ///TODO 
+        addPropChar(TABLOO_BLE_CHAR_APN_UUID, SETUP_KEY_GSM_APN);
+        addPropChar(TABLOO_BLE_CHAR_GSM_PIN_UUID, SETUP_KEY_GSM_PIN);
 
         pSetupService->start();
         log_v("service started");
 
         NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
         pAdvertising->addServiceUUID(pSetupService->getUUID());
-        pAdvertising->setScanResponse(true);
-        pAdvertising->start();
+    }
+
+    void start() {
+        Serial.println("Start NimBLE Server");
+        NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+        if(!pAdvertising->isAdvertising()) {
+            pAdvertising->setScanResponse(true);
+            pAdvertising->start();
+        }
 
         log_v("Advertising Started");
+    }
+
+    void stop() {
+        Serial.println("Stop NimBLE Server");
+        NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+        if(pAdvertising->isAdvertising()) {
+            pAdvertising->stop();
+            pAdvertising->setScanResponse(false);
+        }
     }
 };
 

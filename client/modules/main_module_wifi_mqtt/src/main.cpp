@@ -2,6 +2,10 @@
 #define SETUP_LED_PIN 2
 #define SETUP_BUTTON_PIN 4
 
+
+#define SETUP_BLE_ENABLED true
+#define SETUP_TIMEOUT_PAUSE 60000
+
 //MQTT broker data
 #define MQTT_BROKER "dev.intellisoft.ee"
 #define MQTT_USER "ilja"
@@ -15,9 +19,13 @@
 #define UART_SPEED 9600 //15200
 
 // NTP settings
-#define TIME_TIMEZONE_OFFSET_GMT_SEC 7200    // 2 hours
-#define TIME_DST_OFFSET_SEC 3600             // 1 hour
+// #define TIME_TIMEZONE_OFFSET_GMT_SEC 7200    // 2 hours
+// #define TIME_DST_OFFSET_SEC 3600             // 1 hour
 // #define TIME_NTP_SERVER "pool.ntp.org"   // change to use own ntp server
+
+#define TIME_TIMEZONE_OFFSET_GMT_SEC 0    // 2 hours
+#define TIME_DST_OFFSET_SEC 0             // 1 hour
+
 
 //I2C
 #define I2C_SDA              21
@@ -26,7 +34,7 @@
 
 #define UPLOAD_BUFFER_MAX_SIZE 1024
 
-#define TIMER_SYNC_INTERVAL 120000  // every two minutes
+#define TIMER_SYNC_INTERVAL 100000  // every ten seconds
 
 
 #include <Arduino.h>
@@ -52,19 +60,26 @@ void onTimetableReceived(char* data, size_t dataSize) {
     log_v("sent %d bytes", dataSize);
 }
 
-void sendTimeToTargets() {
-    if(!isTimeInitialized()) {
-        log_v("Time not initialized yet");
+void sendTime(bool bSendToUART, bool bSendToI2C) {
+    if(!time_is_initialized()) {
+        log_e("Time is not initialized, will not send");
         return;
     }
-    uint8_t p[8] = {UART_PACKET_TYPE_CURRENTTIME, 0, 0, 0, 0, 0, 0, 0};
-    getDateTime(p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-    log_i("Will send to targets: %d.%d.%d %d:%d:%d +%d", p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-    if(p[1] > 4) {
+
+    uint8_t packet[TIME_PACKET_SIZE + 1] = {0};
+    time_setup_packet(packet + 1);
+    packet[0] = UART_PACKET_TYPE_CURRENTTIME;
+
+    //send time to display (UART)
+    if(bSendToUART) {
+        log_v("Send time to UART");
+        uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet + 1, TIME_PACKET_SIZE);
+    }
+
+    if(bSendToI2C) {
         log_v("Send time to I2C targets");
-        i2c_write(p, 8);
-    } else 
-        log_v("Invalid time, wont send it to I2C targets");
+        i2c_write(packet, TIME_PACKET_SIZE + 1);
+    }
 }
 
 void onTargetsListReceived(char* data, size_t dataSize) {
@@ -74,8 +89,8 @@ void onTargetsListReceived(char* data, size_t dataSize) {
         log_v("\t%d", (uint8_t)data[i]);
     i2c_save_list(data, dataSize);
     log_v("targets data saved");
-    // TODO send time to targets
-    sendTimeToTargets();
+    // TODO send time to targets (not to UART)
+    sendTime(false, true);
 }
 
 void processLocalInput(char* data, size_t len) {
@@ -128,12 +143,7 @@ void syncTime() {
     // SimpleDateTime time = 
     networking_request_datetime();
 
-    //send time to display (UART)
-    uint8_t packet[TIME_PACKET_SIZE] = {0};
-    time_setup_packet(packet);
-    uartt.write(UART_PACKET_TYPE_CURRENTTIME, packet, TIME_PACKET_SIZE);
-
-    // TODO sendTimeToTargets();
+    sendTime(true, true);
 }
 
 void readDataFromTargets() {

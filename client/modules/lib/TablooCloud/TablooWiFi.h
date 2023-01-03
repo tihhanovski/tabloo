@@ -88,6 +88,9 @@ void networking_request_datetime() {
 
     //sync time using NTP
     configTime(TIME_TIMEZONE_OFFSET_GMT_SEC, TIME_DST_OFFSET_SEC, TIME_NTP_SERVER);
+    printLocalTime();
+    log_v("time requested");
+    rtc_time_initialized = true;
     // SimpleDateTime ret;
     // ret.setupByRTC();
     // return ret;

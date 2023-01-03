@@ -45,17 +45,24 @@ void dataRequested() {
     log_v("requested data");
 
     uint8_t yr, mo, dy, hr, mn, sc, of;
-    getDateTime(yr, mo, dy, hr, mn, sc, of);
+
+    // struct tm timeinfo;
+    time_t now;
+    time(&now);
+    // localtime_r(&now, &timeinfo);
+
+    // getDateTime(yr, mo, dy, hr, mn, sc, of);
 
     WireSlave.print(y++);
-    WireSlave.print(" D: ");
-    WireSlave.print("" + String(yr) + "-" + String(mo) + "-" + String(dy) + "T" + String(hr) + ":" + String(mn) + ":" + String(sc) + "+" + String(of));
-    WireSlave.print(": ");
-    WireSlave.print("H: ");
+    WireSlave.print(" D=");
+    // WireSlave.print("" + String(yr) + "-" + String(mo) + "-" + String(dy) + "T" + String(hr) + ":" + String(mn) + ":" + String(sc) + "+" + String(of));
+    WireSlave.print(String(now));
+    WireSlave.print(";");
+    WireSlave.print("H=");
     WireSlave.print(humidity);
-    WireSlave.print(", T: ");
+    WireSlave.print(";T=");
     WireSlave.print(temperature);
-    WireSlave.print(", I: ");
+    WireSlave.print(";I=");
     WireSlave.print(heatIndex);
     WireSlave.println("");
     log_v("data printed");

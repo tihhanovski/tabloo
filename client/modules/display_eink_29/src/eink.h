@@ -37,6 +37,181 @@ GxIO_Class io(SPI, /*CS=5*/ SS, /*DC=*/ 17, /*RST=*/ 16); // arbitrary selection
 GxEPD_Class display(io, /*RST=*/ 16, /*BUSY=*/ 4); // arbitrary selection of (16), 4
 
 
+void displayLine(LineData &l, uint8_t pos) {
+
+    display.setRotation(1);
+
+    log_v("\t%s:\t%s\t%s", l.shortName, l.longName, l.headSign);
+
+    uint16_t x = 0;
+    uint16_t y = pos * 20;
+    uint16_t w = GxEPD_WIDTH;
+    uint16_t h = 20;
+    display.fillRect(x, y, w, h, GxEPD_WHITE);
+
+    display.setFont(&FreeMonoBold9pt7b);
+    display.setCursor(x + 2, y + 18);
+    display.setTextColor(GxEPD_RED);
+    display.print(l.shortName);
+
+    display.setFont(&Picopixel);
+    display.setTextColor(GxEPD_BLACK);
+    display.setCursor(x + 30, y + 8);
+    display.print(l.longName);
+    display.setCursor(x + 30, y + 16);
+    display.print(l.headSign);
+}
+
+
+void display_showLines(BusStopData &timetable) {
+    log_v("Output lines");
+    display.fillScreen(GxEPD_WHITE);
+    for(uint8_t i = 0; i < timetable.lineCount; i++)
+        displayLine(timetable.lines[i], i);
+    display.update();
+    display.powerDown();
+}
+
+void display_splashscreen() {
+    log_v("Displaying splashscreen");
+    const char* HELLO_MSG = "Tabloo stardib...";
+
+    display.setFont(&FreeMonoBold9pt7b);
+    display.setRotation(1);
+ 
+    display.setFont(&FreeMonoBold9pt7b);
+    display.setTextColor(GxEPD_BLACK);
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds(HELLO_MSG, 0, 0, &tbx, &tby, &tbw, &tbh);
+    // center bounding box by transposition of origin:
+    uint16_t x = ((display.width() - tbw) / 2) - tbx;
+    uint16_t y = ((display.height() - tbh) / 2) - tby;
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x, y);
+    display.print(HELLO_MSG);
+    display.update();
+    display.powerDown();
+    log_v("Splashscreen displayed");
+}
+
+void displayLineWaitingTime(uint16_t minToWait, uint8_t pos) {
+
+    display.setRotation(1);
+    display.setFont(&FreeMonoBold9pt7b);
+
+    char buf[5] = {0};
+    sprintf(buf, "%d", minToWait);
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+    uint16_t x = display.width() - 40;
+    uint16_t y = pos * 20;
+    uint16_t w = 40;
+    uint16_t h = 20;
+
+    display.setCursor(display.width() - tbw - 2, y + 18);
+    display.setTextColor(GxEPD_BLACK);
+    display.print(buf);
+}
+void display_showWaitingTimes(BusStopData& timetable) {
+
+    static unsigned long nextWTUpdateTime = 0;
+    unsigned long t = millis();
+    if (t < nextWTUpdateTime)
+        return;
+    nextWTUpdateTime = t + DISPLAY_WAITINGTIMES_REFRESH_INTERVAL_MILLIS;
+
+    if(time_is_initialized()) {
+        uint8_t h;
+        uint8_t m;
+        uint8_t dow = time_get_day_of_week();
+        getHourAndMinute(h, m);
+        log_v("recalculating times for %d:%d, dow=%d", h, m, dow);
+
+        uint16_t x = display.width() - 40;
+        display.fillRect(x, 0, 40, 20 * timetable.lineCount, GxEPD_WHITE);
+        for(uint8_t i = 0; i < timetable.lineCount; i++) {
+            uint16_t minutesToWait = timetable.getWaitingTime(i, h, m, dow);
+            displayLineWaitingTime(minutesToWait, i);
+        }
+        display.updateWindow(x, 0, 40, 20 * timetable.lineCount, true);
+        display.powerDown();
+    }
+}
+
+void display_message(const uint8_t* msg) {
+    log_v("message will be displayed: '%s'", msg);
+
+    display.setRotation(1);
+    display.setFont(&FreeMonoBold9pt7b);
+
+    uint16_t x = 0;
+    uint16_t y = display.height() - 20;
+    uint16_t w = display.width() - 60;
+    uint16_t h = 20;
+    display.fillRect(x, y - 20, w, h, GxEPD_WHITE);
+
+    int16_t tbx, tby; uint16_t tbw, tbh;
+    display.getTextBounds((char*)msg, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+    display.setCursor(x, y + tbh + 2);
+    display.setTextColor(GxEPD_BLACK);
+    display.print((char*)msg);
+    display.updateWindow(x, y, w, h);
+    display.powerDown();
+
+    log_v("message displayed");
+}
+
+unsigned long nextClockTime = 0;     // Time when next clock repaint should occur
+bool timeColon = false;             // Colon between hh and mm in clock to visualise ticking
+
+/**
+ * Repaint clock area two times every second
+ */
+void display_updateClock() {
+
+    static unsigned long nextClockUpdateTime = 0;
+    unsigned long t = millis();
+    if (t < nextClockUpdateTime)
+        return;
+    nextClockUpdateTime = t + DISPLAY_CLOCK_REFRESH_INTERVAL_MILLIS;
+
+    if(time_is_initialized()) {
+        display.setRotation(1);
+        display.setFont(&FreeMonoBold9pt7b);
+
+        uint8_t th, tm;
+        getHourAndMinute(th, tm);
+
+
+        char buf[8] = {0};
+        sprintf(buf, "%02d:%02d", th, tm);
+        int16_t tbx, tby; uint16_t tbw, tbh;
+        display.getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+        uint16_t x = display.width() - tbw - 2;
+        uint16_t y = display.height() - 2;
+        uint16_t w = tbw + 2;
+        uint16_t h = tbh + 2;
+
+        log_v("refresh clock %02d:%02d rect:(%d, %d, %d, %d)", th, tm, x, y, w, h);
+
+        display.fillRect(x, y - 20, w, 20, GxEPD_WHITE);
+        display.setCursor(x, y);
+        display.setTextColor(GxEPD_BLACK);
+        display.print(buf);
+        display.updateWindow(x, y - 20, w, 20);
+        display.powerDown();
+    }
+}
+
+void display_loop(BusStopData& timetable) {
+    display_showWaitingTimes(timetable);
+    display_updateClock();
+}
+
+/*
 void showPartialUpdate()
 {
     // use asymmetric values for test
@@ -129,153 +304,4 @@ void showPartialUpdate()
     display.setRotation(0);
     display.powerDown();
 }
-
-void displayLine(LineData &l, uint8_t pos) {
-
-    display.setRotation(1);
-
-    log_v("\t%s:\t%s\t%s", l.shortName, l.longName, l.headSign);
-
-    uint16_t x = 0;
-    uint16_t y = pos * 20;
-    uint16_t w = GxEPD_WIDTH;
-    uint16_t h = 20;
-    display.fillRect(x, y, w, h, GxEPD_WHITE);
-
-    display.setFont(&FreeMonoBold9pt7b);
-    display.setCursor(x + 2, y + 18);
-    display.setTextColor(GxEPD_RED);
-    display.print(l.shortName);
-
-    display.setFont(&Picopixel);
-    display.setTextColor(GxEPD_BLACK);
-    display.setCursor(x + 30, y + 8);
-    display.print(l.longName);
-    display.setCursor(x + 30, y + 16);
-    display.print(l.headSign);
-}
-
-
-void display_showLines(BusStopData &timetable) {
-    log_v("Output lines");
-    display.fillScreen(GxEPD_WHITE);
-    for(uint8_t i = 0; i < timetable.lineCount; i++)
-        displayLine(timetable.lines[i], i);
-    display.update();
-    display.powerDown();
-}
-
-void display_splashscreen() {
-    log_v("Displaying splashscreen");
-    const char* HELLO_MSG = "Tabloo stardib...";
-
-    display.setFont(&FreeMonoBold9pt7b);
-    display.setRotation(1);
- 
-    display.setFont(&FreeMonoBold9pt7b);
-    display.setTextColor(GxEPD_BLACK);
-    int16_t tbx, tby; uint16_t tbw, tbh;
-    display.getTextBounds(HELLO_MSG, 0, 0, &tbx, &tby, &tbw, &tbh);
-    // center bounding box by transposition of origin:
-    uint16_t x = ((display.width() - tbw) / 2) - tbx;
-    uint16_t y = ((display.height() - tbh) / 2) - tby;
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(x, y);
-    display.print(HELLO_MSG);
-    display.update();
-    display.powerDown();
-    log_v("Splashscreen displayed");
-}
-
-void displayLineWaitingTime(uint16_t minToWait, uint8_t pos) {
-
-    display.setRotation(1);
-    display.setFont(&FreeMonoBold9pt7b);
-
-    char buf[5] = {0};
-    sprintf(buf, "%d", minToWait);
-    int16_t tbx, tby; uint16_t tbw, tbh;
-    display.getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
-
-    uint16_t x = display.width() - 40;
-    uint16_t y = pos * 20;
-    uint16_t w = 40;
-    uint16_t h = 20;
-
-    display.setCursor(display.width() - tbw - 2, y + 18);
-    display.setTextColor(GxEPD_BLACK);
-    display.print(buf);
-}
-void display_showWaitingTimes(BusStopData& timetable) {
-
-    static unsigned long nextWTUpdateTime = 0;
-    unsigned long t = millis();
-    if (t < nextWTUpdateTime)
-        return;
-    nextWTUpdateTime = t + DISPLAY_WAITINGTIMES_REFRESH_INTERVAL_MILLIS;
-
-    if(isTimeInitialized()) {
-        uint8_t h;
-        uint8_t m;
-        uint8_t dow = getDayOfWeek();
-        getHourAndMinute(h, m);
-        log_v("recalculating times for %d:%d, dow=%d", h, m, dow);
-
-        uint16_t x = display.width() - 40;
-        display.fillRect(x, 0, 40, 20 * timetable.lineCount, GxEPD_WHITE);
-        for(uint8_t i = 0; i < timetable.lineCount; i++) {
-            uint16_t minutesToWait = timetable.getWaitingTime(i, h, m, dow);
-            displayLineWaitingTime(minutesToWait, i);
-        }
-        display.updateWindow(x, 0, 40, 20 * timetable.lineCount, true);
-        display.powerDown();
-    }
-}
-
-unsigned long nextClockTime = 0;     // Time when next clock repaint should occur
-bool timeColon = false;             // Colon between hh and mm in clock to visualise ticking
-
-/**
- * Repaint clock area two times every second
- */
-void display_updateClock() {
-
-    static unsigned long nextClockUpdateTime = 0;
-    unsigned long t = millis();
-    if (t < nextClockUpdateTime)
-        return;
-    nextClockUpdateTime = t + DISPLAY_CLOCK_REFRESH_INTERVAL_MILLIS;
-
-    if(isTimeInitialized()) {
-        display.setRotation(1);
-        display.setFont(&FreeMonoBold9pt7b);
-
-        uint8_t th, tm;
-        getHourAndMinute(th, tm);
-
-
-        char buf[8] = {0};
-        sprintf(buf, "%02d:%02d", th, tm);
-        int16_t tbx, tby; uint16_t tbw, tbh;
-        display.getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
-
-        uint16_t x = display.width() - tbw - 2;
-        uint16_t y = display.height() - 2;
-        uint16_t w = tbw + 2;
-        uint16_t h = tbh + 2;
-
-        log_v("refresh clock %02d:%02d rect:(%d, %d, %d, %d)", th, tm, x, y, w, h);
-
-        display.fillRect(x, y - 20, w, 20, GxEPD_WHITE);
-        display.setCursor(x, y);
-        display.setTextColor(GxEPD_BLACK);
-        display.print(buf);
-        display.updateWindow(x, y - 20, w, 20);
-        display.powerDown();
-    }
-}
-
-void display_loop(BusStopData& timetable) {
-    display_showWaitingTimes(timetable);
-    display_updateClock();
-}
+*/

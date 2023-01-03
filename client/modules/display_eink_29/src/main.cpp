@@ -4,6 +4,8 @@
 #define DEMO_DELAY 30
 
 #define SAVED_TIMETABLE_FILE "/timetable.bin"
+#define SAVED_TIMETABLE_HASH "/timetable.md5"
+
 #define UARTIO_DEBUG true
 #define UART_RX 33
 #define UART_TX 32
@@ -18,6 +20,9 @@
 #include <BusStopData.h>
 #include "eink.h"
 #include <SPIFFS.h>               // ESP32 internal SD filesystem. Used to store settings etc
+
+#include "rom/md5_hash.h" // для void md5_test
+// #include "mbedtls/md5.h" // для void mbed_tls_md5
 
 
 HardwareSerial SerialPort(2); // use UART2
@@ -36,21 +41,69 @@ void clearData() {
     }
 }
 
+bool loadFile(const char* filename, uint8_t*& data, size_t& size) {
+    File file = SPIFFS.open(filename);
+    if(file) {
+        size = file.available();
+        if(size) {
+            log_v("File '%s' opened, available %d", filename, size);
+            data = new uint8_t[size];
+            file.read(data, size);
+            file.close();
+            log_v("Loaded %d bytes, file %s is closed", size, filename);
+            return true;
+        } else
+            log_e("File %s is empty", filename);
+    } else
+        log_e("Cant open file '%s'", filename);
+    return false;
+}
+
+void saveFile(const char* filename, uint8_t* data, size_t size) {
+    log_v("Saving file '%s', %d bytes", filename, size);
+    File file = SPIFFS.open(SAVED_TIMETABLE_FILE, FILE_WRITE, true);
+    if(file) {
+        log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, file.available());
+        file.write(data, dataSize);
+        file.close();
+    } else
+        log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
+    log_v("File '%s' saved");
+}
+
 void loadData(uint8_t* msg, uint32_t size) {
     clearData();
     dataSize = size;
     data = new uint8_t[dataSize];
     memcpy(data, msg, dataSize);
 
-    File file = SPIFFS.open(SAVED_TIMETABLE_FILE, FILE_WRITE, true);
-    if(file) {
-        log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, file.available());
+    uint8_t* savedHash;
+    size_t savedHashLength = 0;
+    uint8_t newHash[17] = {0};
+    struct MD5Context md5;
+    MD5Init(&md5);
+    MD5Update(&md5, data, dataSize);
+    MD5Final(newHash, &md5);
 
-        file.write(data, dataSize);
-        file.close();
+    if(loadFile(SAVED_TIMETABLE_HASH, savedHash, savedHashLength)) {
+        if(!memcmp(savedHash, newHash, 16)) {
+            log_v("Saved hash and new hash are equal, ignore changes");
+            return;
+        }
+    }
 
-    } else
-        log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
+    saveFile(SAVED_TIMETABLE_HASH, newHash, 16);
+    saveFile(SAVED_TIMETABLE_FILE, data, dataSize);
+
+    // File file = SPIFFS.open(SAVED_TIMETABLE_FILE, FILE_WRITE, true);
+    // if(file) {
+    //     log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, file.available());
+
+    //     file.write(data, dataSize);
+    //     file.close();
+
+    // } else
+    //     log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
 
     timetable.initialize((char*)data);
     display_showLines(timetable);
@@ -66,21 +119,20 @@ void executeCommand(uint8_t* msg, uint32_t msgLength) {
     cmdText[msgLength] = 0;
     log_v("command %s", cmdText);
 
-    // display->fillRect(0, 24, 64, 8, DISPLAY_COLOR_BLACK);
-    // display->setTextColor(DISPLAY_COLOR_RED);
-    // display->setCursor(0, 24);
-    // String s = String((char*)cmdText);
-    // display->print(s);
-    // display->drawRect(0, 24, 64, 8, DISPLAY_COLOR_RED);
-
     if(!strcmp((const char*)cmdText, CMD_REBOOT)) {
         log_i("will reboot");
         ESP.restart();
+        return;
     }
+
+    //default: just display it
+
+    display_message(cmdText);
+
 }
 
 void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
-    log_i("Received %d bytes, type=%d: '%s'", msgLength, type, msg);
+    log_i("Received %d bytes, type=%d", msgLength, type);
 
     switch(type) {
         case UART_PACKET_TYPE_CURRENTTIME:
@@ -89,8 +141,6 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
                 break;
             }
             log_v("Setting current time");
-            // setDateTime(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6]);
-            // TODO matrix_resetCurrentTime();
             time_init_by_packet(msg);
             break;
         case UART_PACKET_TYPE_TIMETABLE:
@@ -98,7 +148,7 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
             loadData(msg, msgLength);
             break;
         case UART_PACKET_TYPE_COMMAND:
-            //will assume that cmd is c string
+            //will assume that cmd is a CString
             executeCommand(msg, msgLength);
             break;
         default:
@@ -109,7 +159,6 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
     bLedOn = !bLedOn;
     digitalWrite(2, bLedOn);
 }
-
 
 void setup()
 {
@@ -127,21 +176,26 @@ void setup()
 
     // Start internal filesystem
     if(SPIFFS.begin(true)){
-        File file = SPIFFS.open(SAVED_TIMETABLE_FILE);
-        if(file) {
-            dataSize = file.available();
-            if(dataSize) {
-                log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, dataSize);
-                data = new uint8_t[dataSize];
-                file.read(data, dataSize);
-                file.close();
-                log_v("Timetables data initialized from saved file");
-                timetable.initialize((char*)data);
-                display_showLines(timetable);
-            } else
-                log_e("File %s is empty", SAVED_TIMETABLE_FILE);
-        } else
-            log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
+        if(loadFile(SAVED_TIMETABLE_FILE, data, dataSize)) {
+            log_v("Timetables data initialized from saved file (%d bytes)", dataSize);
+            timetable.initialize((char*)data);
+            display_showLines(timetable);
+        }
+    //     File file = SPIFFS.open(SAVED_TIMETABLE_FILE);
+    //     if(file) {
+    //         dataSize = file.available();
+    //         if(dataSize) {
+    //             log_v("File '%s' opened, available %d", SAVED_TIMETABLE_FILE, dataSize);
+    //             data = new uint8_t[dataSize];
+    //             file.read(data, dataSize);
+    //             file.close();
+    //             log_v("Timetables data initialized from saved file");
+    //             timetable.initialize((char*)data);
+    //             display_showLines(timetable);
+    //         } else
+    //             log_e("File %s is empty", SAVED_TIMETABLE_FILE);
+    //     } else
+    //         log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
     } else
         log_e("SPIFFS mount failed!");
 

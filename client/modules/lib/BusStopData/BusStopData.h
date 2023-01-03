@@ -7,19 +7,20 @@
  * 
  * Timetable format handler
  * 
- * downloaded timetable format description (in estonian)
- * https://github.com/tihhanovski/tabloo/wiki/Server
- * 
  * Short format description
- * count of lines (1 byte)
- * Line names. Three zero terminated c strings for each line (x count of lines)
- *      Line short name ie line number (zero terminated c string)
- *      Line long name (zero terminated c string)
- *      Direction (zero terminated c string)
- * Times count (2 bytes): times count = <Times count MSB> * 256 + <Times count LSB>
- *      Times count MSB
- *      Times count LSB
- * Timetable
+ * Header
+ *      count of lines (1 byte)
+ *      Times count (2 bytes): times count = <Times count MSB> * 256 + <Times count LSB>
+ *          Times count MSB
+ *          Times count LSB
+ *      TZ -    timezone byte
+ *      DST -   Daylight Saving data
+ * Stop name (CString)
+ * Line names. Three CStrings for each line (x count of lines)
+ *      Line short name ie line number (CString)
+ *      Line long name (CString)
+ *      Direction (CString)
+ * Timetable (4 bytes ber entry)
  *      Arrival time hours 0 - 23       (1 byte)
  *      Arrival time minutes 0 - 59     (1 byte)
  *      Line index (from line names)    (1 byte)
@@ -28,7 +29,7 @@
 
 #include <Arduino.h>
 #define LINE_INDEX_NOT_FOUND 255
-//#define DEBUG_TIMETABLES 1    // Uncomment to get debug information to Serial
+//#define DEBUG_TIMETABLES 1    // Uncomment to output debug information to Serial
 
 /**
  * Bus line information
@@ -44,13 +45,23 @@ public:
  * Timetable for one bus stop
  */
 class BusStopData {
-    size_t timesCount;              // Count of times in timetable
-    char* timetable = nullptr;      // Pointer to first byte of times massive
+    size_t timesCount = 0;              // Count of times in timetable
+    char* timetable = nullptr;          // Pointer to first byte of times massive
+    char* stopName = nullptr;
 public:
-    LineData* lines = nullptr;      // Line data array
-    uint8_t lineCount;              // Lines count
-    //uint8_t sensorCount;            // Sensors count
-    //char* sensors = nullptr;
+    LineData* lines = nullptr;          // Line data array
+    uint8_t lineCount = 0;              // Lines count
+    uint8_t tz = 0;                     // Timezone data with 15 minutes precision. tz * 900 = offset in seconds
+    uint8_t dst = 0;                    // DST type
+
+    // TODO is it correct definition of DST?
+    // #define	DST_NONE	0	/* not on dst */
+    // #define	DST_USA		1	/* USA style dst */
+    // #define	DST_AUST	2	/* Australian style dst */
+    // #define	DST_WET		3	/* Western European dst */
+    // #define	DST_MET		4	/* Middle European dst */
+    // #define	DST_EET		5	/* Eastern European dst */
+    // #define	DST_CAN		6	/* Canada */
 
 
     /** 
@@ -127,6 +138,8 @@ public:
             lines = nullptr;
         }
         timetable = nullptr;
+        lineCount = 0;
+        timesCount = 0;
         //sensors = nullptr;
     }
 
@@ -137,33 +150,39 @@ public:
      * Saves address of beginning of timetable in buffer
      */
     void initialize(char* data) {
-        if(data == nullptr) {
-            lineCount = 0;
-            timesCount = 0;
-            return;
-        }
-
         cleanup();
-        char* p = data; // + 3; -- before in the beginning was 3 bytes of date
+        if(data == nullptr)
+            return;
 
-        lineCount = *p;
+        char* p = data;
+
+        lineCount = *p++;                               // 0    lines count (0 - 255)
+        uint8_t timeCountHi = *p++;                     // 1    timesCount MSB
+        uint8_t timeCountLo = *p++;                     // 2    timesCount LSB
+        tz = *p++;                                      // 3    timezone
+        dst = *p++;                                     // 4    DST
+        timesCount = 256 * timeCountHi + timeCountLo;
         lines = new LineData[lineCount];
-        p++;
 
-        for(unsigned int i = 0; i < lineCount; i++) {
+        log_v("lines: %d, times: %d, TZ: %d, DST: %d", lineCount, timesCount, tz, dst);
+
+        stopName = p;                                   // 5    stop name begins
+        log_v("Stop name: '%s'", stopName);
+        p = strchr(p, '\0') + 1;
+
+        for(unsigned int i = 0; i < lineCount; i++) {   //      line names
             lines[i].shortName = p;
             p = strchr(p, '\0') + 1;
             lines[i].longName = p;
             p = strchr(p, '\0') + 1;
             lines[i].headSign = p;
             p = strchr(p, '\0') + 1;
+
+            log_v("Line #%d: '%s': '%s' / '%s'", i, lines[i].shortName, lines[i].longName, lines[i].headSign);
         }
 
-        unsigned char timeCountHi = *p++;
-        unsigned char timeCountLo = *p++;
-        timesCount = 256 * timeCountHi + timeCountLo;
 
-        timetable = p;  //Save timetable start address
+        timetable = p;                                  //      Save timetable start address
 
     }
 };
