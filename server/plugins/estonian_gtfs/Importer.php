@@ -37,6 +37,11 @@ class Importer
         return TYPE_VARCHAR;
     }
 
+    function q($s)
+    {
+        return "'$s'";
+    }
+    
     function import($create = false, $insert = false)
     {
         $s = file_get_contents($this->db . "/" . $this->table . ".txt");
@@ -62,7 +67,7 @@ class Importer
                     {
                         $this->types[$x] = $this->detectType($x, $a[$x]);
                         $this->sizes[$x] = $this->detectSize($x, $a[$x]);
-                        $a[$x]  = q($a[$x]);
+                        $a[$x]  = $this->q($a[$x]);
                     }
                     if($insert)
                         $this->output("insert into " . $this->table . " (" . $headerSql . ") values (" . implode(", ", $a) . ");\n");
@@ -81,9 +86,4 @@ class Importer
     {
         echo $sql;
     }
-}
-
-function q($s)
-{
-    return "'$s'";
 }

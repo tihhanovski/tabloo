@@ -10,3 +10,6 @@ Andmebaasi struktuuri loomiseks:
   
 Andmete impordimiseks:
   php import.php
+
+# Edasi ei arendata
+Edasine arendus toimub plugins/estonian_gtfs kataloogis

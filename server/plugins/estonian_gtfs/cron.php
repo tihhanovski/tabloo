@@ -7,6 +7,10 @@ class DBImporter extends Importer
 {
     public $db;    //mysql connection
 
+    function q($s) {
+        return "'" . $this->db->real_escape_string($s) . "'";
+    }
+
     public function output($sql) {
         $this->db->query($sql);
     }

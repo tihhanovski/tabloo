@@ -1,16 +1,24 @@
 <?php
 
-    require_once "setup.php";
-    require_once "Importer.php";
+    // die(dirname(__DIR__, 2) . "/setup.php");
+
+    require_once dirname(__DIR__, 2) . "/setup.php";
+    require_once __DIR__ . "/setup.php";
+    require_once __DIR__ . "/Importer.php";
 
     class DBImporter extends Importer
     {
         public $db;    //mysql connection
 
-        public function output($sql)
+        function q($s)
         {
-            $this->db->query($sql);
+            return "'" . $this->db->real_escape_string($s) . "'";
         }
+    
+        // public function output($sql)
+        // {
+        //     $this->db->query($sql);
+        // }
     }
 
     //Get FileId from web
@@ -50,20 +58,23 @@
 
     if($importId)
     {
-        //echo "exiting\n";
-        return;
+        echo "import id found: $importId . Exiting\n";
+        // return;
     }
 
     //echo "must import\n";
 
-    $mysqli->query("insert into imports(fileId, started)values('" . $mysqli->real_escape_string($fileId) . "', now())");
-    $importId = (int)$mysqli->insert_id;
+    // Add new import record
+    // $mysqli->query("insert into imports(fileId, started)values('" . $mysqli->real_escape_string($fileId) . "', now())");
+    // $importId = (int)$mysqli->insert_id;
 
     //echo "new id: $importId\n";
 
     $dn = sys_get_temp_dir();
     $fn = $dn . "/" . GTFS_FILE;
-	file_put_contents($fn, fopen(GTFS_SERVER . GTFS_FILE, 'r'));
+
+    // Download GTFS file to temp
+	// file_put_contents($fn, fopen(GTFS_SERVER . GTFS_FILE, 'r'));
 
     $zip = new ZipArchive;
     $res = $zip->open($fn);
@@ -76,8 +87,8 @@
             $zip->extractTo($dn, $ee);
 
             $tableName = substr($ee, 0, -4);
-            $sql = "truncate table $tableName";
-            $mysqli->query($sql);
+            // $sql = "truncate table $tableName";
+            // $mysqli->query($sql);
 
             $importer = new DBImporter($dn, $tableName);
             $importer->db = $mysqli;
@@ -87,9 +98,12 @@
         }
         $zip->close();
     }
-    unlink($fn);
 
-    $sql = "update imports set finished = now() where id = $importId";
-    //echo "** $sql \n";
-    $mysqli->query($sql);
-    $mysqli->close();
+    // Delete GTFS zipped file
+    // unlink($fn);
+
+    // update import record
+    // $sql = "update imports set finished = now() where id = $importId";
+    // echo "** $sql \n";
+    // $mysqli->query($sql);
+    // $mysqli->close();
