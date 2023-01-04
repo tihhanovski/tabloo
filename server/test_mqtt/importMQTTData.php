@@ -1,16 +1,19 @@
 <?php
 
-require_once "../web/setup.php";
+$libDir = dirname(__DIR__);
+require_once $libDir . '/vendor/autoload.php';
+require_once $libDir .  '/setup.php';
+require_once $libDir .  '/app/index.php';
 
-require_once "../app/index.php";
 use function \Tabloo\app\app as app;
 
+// connect to MQTT broker
+// for address, username and password see setup.php
 $mqtt = app()->mqtt(MQTT_CLIENTID . "-importer");
 if(!$mqtt->connect(true, NULL, MQTT_USER, MQTT_PASSWORD))
 	exit(1);
 
-//$mqtt->debug = true;
-
+//subscribe to output topic for every stop with tabloo
 $topics = [];
 $stEnabled = app()->db()->prepare(SQL_ENABLED_STOPS);
 $stEnabled->execute();
@@ -30,46 +33,45 @@ define("MQTT_STOPS_TOPIC_LEN", strlen(MQTT_STOPS_TOPIC));
 while($mqtt->proc());
 $mqtt->close();
 
+// extract 4-byte number from package
 function extractNumber($msg, $pos) {
     $ret = 0;
     $p = 1;
-    // echo "extract from '$msg' at $pos\n";
     for($i = 0; $i < 4; $i++){
         $ret += ord($msg[$pos + $i]) * $p;
-        // echo "\t\t" . ($pos + $i) . " > " . ord($msg[$pos + $i]) . " --> " . $ret . "\n";
         $p *= 256;
     }
-    // echo "ret $ret\n";
     return $ret;
 }
 
-
+// this function will be called for every message
 function processTargetData($topic, $msg){
     echo date('H:i:s') . "\t$topic\n";
 
+    //extract stop code
     $a = explode("/", substr($topic, MQTT_STOPS_TOPIC_LEN));
     $stop_code = $a[0];
 
-    // for($i = 0; $i < 15; $i++)
-    //     echo ord($msg[$i]) . "  ";
-    // echo "\n";
-
+    //Several messages from multiple modules could arrive in one package
     while($msg != "") {
+        //extract module address and message length
         $addr = extractNumber($msg, 0);
         $length = extractNumber($msg, 4);
         
+        //retrieve message body
         $body = substr($msg, 8, $length);
 
+        //save message to the database
         $params = array(
             "sensor_addr" => $addr,
             "stop_code" => $stop_code,
             "reading" => $body
         );
-
         global $stSave;
         $stSave->execute($params);
 
         echo "\t$stop_code/$addr ($length) -> '$body'\n";
+        // proceed with next message
         $msg = substr($msg, 8 + $length);
     }
 
