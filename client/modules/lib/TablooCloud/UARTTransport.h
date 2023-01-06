@@ -45,6 +45,11 @@ public:
                     delete[] msg.body;
                 }
                 onMessageReceived(msgType, msgBody, msgLength);
+
+                if(msg.body != nullptr)
+                    delete[] msgBody;
+                msgLength = 0;
+                msgType = 0;
             }
         }        
     }
