@@ -2,8 +2,6 @@
 
 namespace Tabloo\app;
 
-    require '../vendor/autoload.php';
-
     /*class GeneralException extends Exception {
         protected $httpStatus = 500;    // HTTP status code will be returned based on exception catched
 

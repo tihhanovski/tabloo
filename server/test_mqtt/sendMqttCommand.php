@@ -1,5 +1,8 @@
 <?php
 
+    $libDir = dirname(__DIR__);
+    require_once $libDir . '/vendor/autoload.php';
+
     require_once "../web/setup.php";
     require_once "../app/index.php";
     use function \Tabloo\app\app as app;
