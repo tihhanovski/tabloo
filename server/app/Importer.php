@@ -40,7 +40,10 @@ class MQTTPackage {
     }
 
     public function produce() {
-        return chr($this->target) . chr($this->type) . $this->data;
+        // print_r(mb_list_encodings());
+        $str = mb_convert_encoding($this->data, "Latin1", "UTF-8");
+        echo "\n\n>> '" . $str . " >> " . bin2hex($str) . "'\n\n";
+        return chr($this->target) . chr($this->type) . $str;
     }
 
     public function validate() {
@@ -56,6 +59,7 @@ class MQTTPackage {
 class Importer {
 
     public function connectAndPublishPackage($stopCode, $topic, $pkg) {
+
 
         $pkg->validate();
 
