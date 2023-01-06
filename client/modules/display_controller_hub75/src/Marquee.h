@@ -80,7 +80,8 @@ public:
 
         //if(bHalfStep)
         canvas->fillScreen(background);
-        canvas->setCursor(- (pos % charWidth), 0);
+        canvas->setFont(&defaultFont);
+        canvas->setCursor(- (pos % charWidth), FONT_BASELINE);
         canvas->print(str.substring(pp));
 
         canvas2->drawBitmap(0, 0, canvas->getBuffer(), w + 8, h, 65000, background);
@@ -96,59 +97,59 @@ public:
 };
 
 struct MarqueeArrayItem{
-  Marquee* item;
-  MarqueeArrayItem* next = nullptr;
+    Marquee* item;
+    MarqueeArrayItem* next = nullptr;
 };
 
 class Marquees {
 
-  MarqueeArrayItem* items = nullptr;
+    MarqueeArrayItem* items = nullptr;
 
-  String toScroll;
-  unsigned long nextScrollTime = 0;
-  long pos = 0;
-  long charWidth = 6;
+    String toScroll;
+    unsigned long nextScrollTime = 0;
+    long pos = 0;
+    long charWidth = 6;
 
-  MatrixPanel_I2S_DMA *display = nullptr;
+    MatrixPanel_I2S_DMA *display = nullptr;
 
 public:
-  void setDisplay(MatrixPanel_I2S_DMA *d) {
-    display = d;
-  }
-
-  void clear()
-  {
-    if(items == nullptr)  // nothing left to clean 
-      return;
-    Serial.print("Marquees.clear: delete '");
-    Serial.print(items->item->getMessage());
-    Serial.println("'");
-
-    delete items->item;
-    MarqueeArrayItem* n = items->next;
-    delete items;
-    items = n;
-    clear();
-  }
-
-  void add(Marquee* m)
-  {
-    MarqueeArrayItem* newItem = new MarqueeArrayItem();
-    newItem->item = m;
-    newItem->next = items;
-    items = newItem;    
-  }
-
-  void loop() {
-    unsigned long t = millis();
-    MarqueeArrayItem* i = items;
-    while(i != nullptr) {
-      if(t >= i->item->nextScrollTime)
-      {
-        i->item->loop();
-        i->item->nextScrollTime = t + i->item->mspp;
-      }
-      i = i->next;
+    void setDisplay(MatrixPanel_I2S_DMA *d) {
+        display = d;
     }
-  }
+
+    void clear()
+    {
+        if(items == nullptr)  // nothing left to clean 
+            return;
+        Serial.print("Marquees.clear: delete '");
+        Serial.print(items->item->getMessage());
+        Serial.println("'");
+
+        delete items->item;
+        MarqueeArrayItem* n = items->next;
+        delete items;
+        items = n;
+        clear();
+    }
+
+    void add(Marquee* m)
+    {
+        MarqueeArrayItem* newItem = new MarqueeArrayItem();
+        newItem->item = m;
+        newItem->next = items;
+        items = newItem;    
+    }
+
+    void loop() {
+        unsigned long t = millis();
+        MarqueeArrayItem* i = items;
+        while(i != nullptr) {
+            if(t >= i->item->nextScrollTime)
+            {
+                i->item->loop();
+                i->item->nextScrollTime = t + i->item->mspp;
+            }
+            i = i->next;
+        }
+    }
 };

@@ -43,6 +43,7 @@ HardwareSerial SerialPort(2); // use UART2
 UARTIO io(SerialPort);
 UARTTransport uartt(io);
 
+const char* CMD_REBOOT = "reboot";
 
 #include "Util.h"           // Misc utilities will be here
 
@@ -66,6 +67,12 @@ void clearData() {
     }
 }
 
+void initData() {
+    timetable.initialize((char*)data);
+    matrix_startScrolls(timetable);
+    outputMemoryData();
+}
+
 void loadData(uint8_t* msg, uint32_t size) {
     clearData();
     dataSize = size;
@@ -82,38 +89,33 @@ void loadData(uint8_t* msg, uint32_t size) {
     } else
         log_e("Cant open file '%s'", SAVED_TIMETABLE_FILE);
 
-    timetable.initialize((char*)data);
-    matrix_startScrolls(timetable);
-    outputMemoryData();
+    initData();
 }
 
-boolean bLedOn = false;
-
-const char* CMD_REBOOT = "reboot";
-
 void executeCommand(uint8_t* msg, uint32_t msgLength) {
+
+    // copy command body
     uint8_t* cmdText = new uint8_t[msgLength + 1];
     memcpy(cmdText, msg, msgLength);
     cmdText[msgLength] = 0;
-    log_v("command %s", cmdText);
+    log_v("command '%s'", cmdText);
 
-    display->fillRect(0, 24, 64, 8, DISPLAY_COLOR_BLACK);
-    display->setTextColor(DISPLAY_COLOR_RED);
-    display->setCursor(0, 24);
-    String s = String((char*)cmdText);
-    display->print(s);
-    display->drawRect(0, 24, 64, 8, DISPLAY_COLOR_RED);
-
+    // execute command
     if(!strcmp((const char*)cmdText, CMD_REBOOT)) {
         log_i("will reboot");
         ESP.restart();
+        return;
     }
 
+    // it was not command, just output it as a message
+    matrix_outputMessage(cmdText, msgLength);
 
+    // cleanup
+    delete[] cmdText;
 }
 
 void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
-    log_i("Received %d bytes, type=%d: '%s'", msgLength, type, msg);
+    log_i("Received message. length=%d bytes, type=%d", msgLength, type);
 
     switch(type) {
         case UART_PACKET_TYPE_CURRENTTIME:
@@ -121,26 +123,20 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
                 log_e("Wrong message length %d", msgLength);
                 break;
             }
-            log_v("Setting current time");
+            log_v("Set current time");
             time_init_by_packet(msg);
-            // setDateTime(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6]);
             matrix_resetCurrentTime();
             break;
         case UART_PACKET_TYPE_TIMETABLE:
-            log_v("TODO: timetable");
+            log_v("New timetable");
             loadData(msg, msgLength);
             break;
         case UART_PACKET_TYPE_COMMAND:
-            //will assume that cmd is c string
             executeCommand(msg, msgLength);
             break;
         default:
             log_e("Received unknown packet with type=%d", type);
     }
-
-    delete msg;
-    bLedOn = !bLedOn;
-    digitalWrite(2, bLedOn);
 }
 
 void setup() {
@@ -148,17 +144,14 @@ void setup() {
 
     Serial.begin(115200);
 
-    // WifiDev
-    // wifidev_setup(WIFIDEV_SSID, WIFIDEV_PASS, WIFIDEV_HOST);
-
-    // UART
+    // init UART comm
     SerialPort.begin(UART_SPEED, SERIAL_8N1, UART_RX, UART_TX);
     uartt.setOnMessageReceived(onMessageReceived);
     outputMemoryData();
     matrix_init(PANEL_RES_X, PANEL_RES_Y, PANEL_CHAIN);
     matrix_splashscreen();
 
-    // Start internal filesystem
+    // Start internal filesystem and load saved timetable to show right after start
     if(SPIFFS.begin(true)){
         File file = SPIFFS.open(SAVED_TIMETABLE_FILE);
         if(file) {
@@ -169,8 +162,7 @@ void setup() {
                 file.read(data, dataSize);
                 file.close();
                 log_v("Timetables data initialized from saved file");
-                timetable.initialize((char*)data);
-                matrix_startScrolls(timetable);
+                initData();
             } else
                 log_e("File %s is empty", SAVED_TIMETABLE_FILE);
         } else
@@ -181,17 +173,8 @@ void setup() {
     startSuccessfull = true;
 }
 
-bool b = false;
-
 void loop() {
     if(startSuccessfull)
         matrix_loop(timetable);
-
     uartt.loop();
-
-    // WifiDev
-    // wifidev_loop();
-
-
-    //delay(50);
 }
