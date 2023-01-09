@@ -1,5 +1,19 @@
 <?php
 
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * List of authorities
+ * No auth
+ * 
+ * Handles GET request
+ * Returns list of authorities
+ * 
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ */
+
+
 class AuthoritiesEndpoint extends RestEndpoint {
 
     public function get(string $path) {

@@ -1,12 +1,23 @@
 <?php
 
-// use function \Tabloo\app\app as app;
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * Module owner message sending endpoint
+ * 
+ * Handles POST request
+ * sends new message to the module
+ * 
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ */
 
 const SQL_FIND_TARGET_ENTRY = "select m.id from stop_sensors m
     inner join stops s on s.stop_id = m.stop_id and s.stop_code = :stop_id
     inner join sensors t on t.id = m.sensor_id and t.deviceId = :target and t.ownerId = :ownerId
     where t.activeStart <= now() and coalesce(t.activeFinish, now() + 100) >= now()
     and m.activeStart <= now() and coalesce(m.activeFinish, now() + 100) >= now()";
+
 
 class MyModuleMessageEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
 
@@ -46,7 +57,7 @@ class MyModuleMessageEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
         \Tabloo\app\app()->importer()->connectAndPublishPackage($stop_id, "command", $pkg);
 
 
-        //TODO output resul
+        //TODO output result
         return [
             "result" => "Message published"
         ];

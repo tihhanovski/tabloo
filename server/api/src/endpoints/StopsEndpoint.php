@@ -1,5 +1,15 @@
 <?php
 
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * Stops list by area
+ * No auth
+ * 
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ */
+
 const SQL_STOPS_FOR_AREA = "select distinct stop_id as id, stop_code as code, stop_name as name, stop_desc as memo 
     from stops where stop_area = :area order by stop_code";
 
