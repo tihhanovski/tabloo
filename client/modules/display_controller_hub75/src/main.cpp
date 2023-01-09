@@ -7,27 +7,22 @@
 
 #include <Arduino.h>
 
-// Wifi debug and OTA
-// #define WIFIDEV_SSID "k10-firstfloor"
-// #define WIFIDEV_PASS "aPustiKaV1nternet"
-// #define WIFIDEV_HOST "display4"
-// #define WEBSOCKET_DISABLED
-// #include <WifiDev.h>
-
-
-#define MATRIX_HUB75_ENABLED true
 #define PANEL_RES_X 64      // Number of pixels wide of each INDIVIDUAL panel module. 
 #define PANEL_RES_Y 32      // Number of pixels tall of each INDIVIDUAL panel module.
 #define PANEL_CHAIN 4       // Total number of panels chained one to another
 
+// Chained display setup
 #define NUM_ROWS 2
 #define NUM_COLS 2
 #define SERPENT true
 #define TOPDOWN false
 
+// Timetable will be saved to this file
 #define SAVED_TIMETABLE_FILE "/timetable.bin"
 
+// #define DEBUG_TIMETABLES true
 
+// Comm setup with main controller
 #define UARTIO_DEBUG true
 #define UART_RX 33
 #define UART_TX 32
@@ -55,10 +50,13 @@ bool startSuccessfull = false;    // True if start was successfull
 
 #include "TablooMatrixPanel.h"
 
-uint8_t* data = nullptr;                 // Buffer for timetable data
+uint8_t* data = nullptr;              // Buffer for timetable data
 size_t dataSize = 0;                  // Size of timetable data
 BusStopData timetable;                // Timetable object
 
+/**
+ * @brief Purge data and free memory
+*/
 void clearData() {
     if(data != nullptr) {
         delete[] data;
@@ -67,12 +65,18 @@ void clearData() {
     }
 }
 
+/**
+ * @brief initialize timetable and start scrolling
+*/
 void initData() {
     timetable.initialize((char*)data);
     matrix_startScrolls(timetable);
     outputMemoryData();
 }
 
+/**
+ * @brief Save arrived data to memory and file, start display of data
+*/
 void loadData(uint8_t* msg, uint32_t size) {
     clearData();
     dataSize = size;
@@ -92,6 +96,9 @@ void loadData(uint8_t* msg, uint32_t size) {
     initData();
 }
 
+/**
+ * @brief Command arrived. Execute or display contents
+*/
 void executeCommand(uint8_t* msg, uint32_t msgLength) {
 
     // copy command body
@@ -114,6 +121,12 @@ void executeCommand(uint8_t* msg, uint32_t msgLength) {
     delete[] cmdText;
 }
 
+/**
+ * @brief Called when message from main controller received
+ * @param type message type
+ * @param msg message body
+ * @param msgLength message size
+*/
 void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
     log_i("Received message. length=%d bytes, type=%d", msgLength, type);
 
