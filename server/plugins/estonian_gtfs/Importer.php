@@ -4,6 +4,13 @@ const TYPE_VARCHAR = "varchar";
 const TYPE_INT = "int";
 const TYPE_DOUBLE = "double";
 
+/**
+ * GTFS importer
+ * Class could be used to create database structure
+ * and to import data
+ * By default it outputs SQL
+ * But could be extended to execute statements too
+ */
 class Importer
 {
     private $db, $table;
@@ -37,6 +44,7 @@ class Importer
         return TYPE_VARCHAR;
     }
 
+    // Override it to implement actual escaping of dangerous characters
     function q($s)
     {
         return "'$s'";
@@ -82,8 +90,8 @@ class Importer
             echo "create table " . $this->table . "(\n" . implode(",\n", $cr) . ");\n";
     }
 
-    function output($sql)
-    {
+    // Override it to execute SQL instead of printing it out
+    function output($sql) {
         echo $sql;
     }
 }

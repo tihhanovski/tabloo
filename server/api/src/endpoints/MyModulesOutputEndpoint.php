@@ -1,5 +1,28 @@
 <?php
 
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * Module owner's modules output
+ * 
+ * Handles GET request
+ * outputs modules raw readings
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ * It is possible to use filters given as HTTP request attributes:
+ * module=<module target no>
+ * stop_code=<stop code from GTFS file>
+ * from=<date_and_time>
+ * until=<date_and_time>
+ * 
+ * output limited by 100 records
+ * sort order is id desc
+ * 
+ * TODO: more filters
+ * TODO: set up sort order
+ * TODO: set up pagination and records limit
+ */
+
 const SQL_GET_READINGS = "select r.id, r.sensor_addr as module, r.stop_code, r.reading, r.dt
     from sensor_raw_readings r
     inner join sensors m on m.deviceId = r.sensor_addr 
@@ -7,6 +30,8 @@ const SQL_GET_READINGS = "select r.id, r.sensor_addr as module, r.stop_code, r.r
 
 class MyModulesOutputEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
 
+    // possible filters list:
+    // filter_request_attr => filter sql
     private $possibleFilters = [
         "module" => "r.sensor_addr = :module", 
         "stop_code" => "r.stop_code = :stop_code",
@@ -14,14 +39,13 @@ class MyModulesOutputEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
         "until" => "r.dt <= :until",
     ];
 
-    // private function addFilter($requestVar, $sql, $param)
-
     /*
         GET     list
     */
     public function get(string $path) {
         $ownerId = (int)($this->user->id);
 
+        // Can get only own modules raw output
         $params = [
             ":ownerId" => $ownerId
         ];
@@ -42,8 +66,6 @@ class MyModulesOutputEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
 
         //TODO limit - 100 by default
         $sql .= " limit 0, 100";
-
-        // app()->debug($sql);
 
         $sel = app()->db()->prepare($sql);
         $sel->execute($params);

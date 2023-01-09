@@ -1,5 +1,19 @@
 <?php
 
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * Areas endpoint
+ * No auth
+ * 
+ * Handles GET request
+ * Returns areas for given authority
+ * 
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ */
+
+
 const SQL_AREAS_FOR_ENDPOINT = "select distinct stop_area from stops where authority = :authority order by stop_area";
 
 class AreasEndpoint extends RestEndpoint {

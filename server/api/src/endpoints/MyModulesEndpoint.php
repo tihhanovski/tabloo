@@ -1,5 +1,20 @@
 <?php
 
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * Module owner's modules
+ * 
+ * Handles GET, POST, PUT, DELETE request
+ * 
+ * 
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ * TODO: implement POST, PUT, and DELETE requests
+ * 
+ */
+
+
 const SQL_GET_MODULES_FOR_OWNER = "select t.id, t.activeStart, t.activeFinish, s.stop_code, s.stop_name, s.stop_desc, s.stop_lat, s.stop_lon, s.stop_area, s.authority, 
     m.deviceId, m.name as moduleName
     from stop_sensors t
@@ -34,9 +49,6 @@ class MyModulesEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
             ];
         }
 
-        // app()->debug($params);
-        // app()->debug($sql);
-
         $sel = app()->db()->prepare($sql);
         $sel->execute($params);
         $ret = $sel->fetchAll(PDO::FETCH_OBJ);
@@ -52,21 +64,6 @@ class MyModulesEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
     */
     public function post(string $path) {
         throw new TODOException("Not implemented yet");
-        // $data = json_decode(app()->getRequestPayload());
-        // $data->ownerId = (int)($this->user->id);
-
-        // $params = [];
-        // foreach($this->fields as $f)
-        //     // if(isset($data->$f))
-        //         $params[":" . $f] = $data->$f;
-        // app()->debug($params);
-
-        // $ins = app()->db()->prepare(SQL_INSERT_MODULETYPE);
-        // $ins->execute($params);
-        // // TODO return new document id
-        // return [
-        //     "errorInfo" => $ins->errorInfo()
-        // ];
     }
 
     /*
@@ -74,22 +71,6 @@ class MyModulesEndpoint extends ModuleOwnerAuthenticatedRestEndpoint {
     */
     public function put(string $path) {
         throw new TODOException("Not implemented yet");
-        // $data = json_decode(app()->getRequestPayload());
-        // app()->debug(["data" => $data]);
-        // $data->ownerId = (int)($this->user->id);
-        // // $data->id = (int)$path;
-
-        // $params = [];
-        // foreach($this->fields as $f)
-        //     $params[":" . $f] = $data->$f;
-        // $params[":id"] = (int)$path;
-        // app()->debug($params);
-
-        // $ins = app()->db()->prepare(SQL_UPDATE_MODULETYPE);
-        // $ins->execute($params);
-        // return [
-        //     "errorInfo" => $ins->errorInfo()
-        // ];
     }
 
     /*

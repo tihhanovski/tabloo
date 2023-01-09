@@ -1,5 +1,16 @@
 <?php
 
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * Module owner's modules types
+ * 
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ * TODO: implement DELETE method
+ * 
+ */
+
 const SQL_GET_MT_FOR_OWNER = "select id, deviceId, activeStart, activeFinish, name from sensors where ownerId = :ownerId";
 const SQL_GET_MT_FOR_ID = "select id, deviceId, activeStart, activeFinish, name from sensors 
     where ownerId = :ownerId and id = :id";
