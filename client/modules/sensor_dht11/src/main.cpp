@@ -1,3 +1,26 @@
+/**
+ * Tabloo - opensource bus stop display
+ * Sample extension module - DHT11 based temperature and humidity sensor
+ * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
+ * 
+ * Module acts as I2C target
+ * TablooI2CTarget.h handles basic module tasks such as current time setup, reboot etc
+ * Module outputs next data:
+ * - reading no (0 - 255, then restart from 0)
+ * - current date (unix timestamp, UTC)
+ * - humidity (float)
+ * - temperature (float)
+ * - humidity and temp index (float)
+ * 
+ * Format:
+ * <reading no>;D=<current_date>;H=<humidity>;T=<temperature>;I=<index>
+ * 
+ * Example
+ *  24 D=173814;H=6.00;T=24.80;I=23.
+ * 
+ */
+
+
 #include <Arduino.h>
 
 
@@ -6,21 +29,9 @@
 #define I2C_ADDR 0x04
 #define I2C_TARGET_BUFFER_SIZE 1024
 
-//#define OTA_ENABLED true
-//#define OTA_HOSTNAME "sensor_dht11"
-
 #include <TablooI2CTarget.h>
 
-#ifdef OTA_ENABLED
-    #include "OTA.h"
-#endif
-
-// Example testing sketch for various DHT humidity/temperature sensors written by ladyada
-// REQUIRES the following Arduino libraries:
-// - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
-// - Adafruit Unified Sensor Lib: https://github.com/adafruit/Adafruit_Sensor
-
-#include "DHT.h"
+#include "DHT.h"      // DHT library
 
 #define DHTPIN 4     // Digital pin connected to the DHT sensor
 
@@ -34,40 +45,51 @@ float humidity;
 float temperature;
 float heatIndex;
 
-// Code from WireSlave Sender
+// Based on Example testing sketch for various DHT humidity/temperature sensors written by ladyada
+// REQUIRES the following Arduino libraries:
+// - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
+// - Adafruit Unified Sensor Lib: https://github.com/adafruit/Adafruit_Sensor
+
+// Based on code from WireSlave Sender
 // by Gutierrez PS <https://github.com/gutierrezps>
 // ESP32 I2C slave library: <https://github.com/gutierrezps/ESP32_I2C_Slave>
 // based on the example by Nicholas Zambetti <http://www.zambetti.com>
 
 uint8_t y = 0;
 
+/**
+ * Callback function
+ * called by TablooI2CTarget, see setup()
+*/
 void dataRequested() {
     log_v("requested data");
 
     uint8_t yr, mo, dy, hr, mn, sc, of;
 
-    // struct tm timeinfo;
     time_t now;
     time(&now);
-    // localtime_r(&now, &timeinfo);
-
-    // getDateTime(yr, mo, dy, hr, mn, sc, of);
 
     WireSlave.print(y++);
-    WireSlave.print(" D=");
-    // WireSlave.print("" + String(yr) + "-" + String(mo) + "-" + String(dy) + "T" + String(hr) + ":" + String(mn) + ":" + String(sc) + "+" + String(of));
-    WireSlave.print(String(now));
+    WireSlave.print(";D=");
+    WireSlave.print((int)now);
     WireSlave.print(";");
     WireSlave.print("H=");
-    WireSlave.print(humidity);
+    WireSlave.print(humidity, 1);
     WireSlave.print(";T=");
-    WireSlave.print(temperature);
+    WireSlave.print(temperature, 1);
     WireSlave.print(";I=");
-    WireSlave.print(heatIndex);
+    WireSlave.print(heatIndex, 1);
+    // WireSlave.print(";U=");
+    // WireSlave.print(millis(), 10);
     WireSlave.println("");
     log_v("data printed");
 }
 
+/**
+ * Callback method
+ * Called by TablooI2CTarget, see setup()
+ * Just output command to log
+*/
 void commandReceived(uint8_t* command, size_t cmdLength) {
     char* c = new char[cmdLength + 1];
     memcpy(c, command, cmdLength);
@@ -76,21 +98,11 @@ void commandReceived(uint8_t* command, size_t cmdLength) {
     delete[] c;
 }
 
-void setup() {
-    Serial.begin(115200);
-    dht.begin();
-
-    #ifdef OTA_ENABLED
-    ota_setup();
-    #endif
-
-    i2ctarget_setup();
-    i2ctarget_onDataRequested = dataRequested;
-    i2ctarget_onCommand = commandReceived;
-}
-
 unsigned long nextTime = 0;
 
+/**
+ * Read and save sensor data
+*/
 void readSensor() {
     unsigned long time = millis();
     if(nextTime > time) 
@@ -99,7 +111,6 @@ void readSensor() {
 
     float h = dht.readHumidity();               // Read humidity
     float t = dht.readTemperature();            // Read temperature as Celsius (the default)
-    //float f = dht.readTemperature(true);      // Read temperature as Fahrenheit (isFahrenheit = true)
 
     if (isnan(h) || isnan(t))                   // Check if any reads failed and exit early (to try again).
         log_e("Failed to read from DHT sensor!");
@@ -111,11 +122,23 @@ void readSensor() {
     }
 }
 
+/**
+ * Setup everything
+*/
+void setup() {
+    Serial.begin(115200);
+    dht.begin();
+
+    i2ctarget_setup();
+    i2ctarget_onDataRequested = dataRequested;
+    i2ctarget_onCommand = commandReceived;
+}
+
+/**
+ * Arduino loop
+*/
 void loop() {
     i2ctarget_loop();
     delay(1);
     readSensor();
-    #ifdef OTA_ENABLED
-    ArduinoOTA.handle();
-    #endif
 }
