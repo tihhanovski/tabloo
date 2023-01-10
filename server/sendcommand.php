@@ -20,7 +20,7 @@ $target_addr = (int)$argv[2];
 $command = $argv[3];
 
 try {
-    $pkg = new \Tabloo\app\MQTTPackage($target_addr, \Tabloo\app\PACKAGE_TYPE_COMMAND, $command);
+    $pkg = new \Tabloo\app\MQTTPackage($target_addr, \Tabloo\app\PACKAGE_TYPE_COMMAND, app()->encodeForDevice($command));
     app()->importer()->connectAndPublishPackage($stop_code, "command", $pkg);
 } catch (Exception $e) {
     echo "ERROR: $e\n";

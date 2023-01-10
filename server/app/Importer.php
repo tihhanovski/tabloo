@@ -65,14 +65,9 @@ class MQTTPackage {
      * byte 0: target
      * byte 1: type
      * byte 2 - byte N: data in MQTT_DATA_ENCODING encoding
-     * //TODO maybe should send data in UTF-8 and decode it on device though
      */
-    public function produce() {
-        if(MQTT_DATA_ENCODING != SERVER_DATA_ENCODING)
-            $str = mb_convert_encoding($this->data, MQTT_DATA_ENCODING, SERVER_DATA_ENCODING);
-        else
-            $str = $this->data;
-        return chr($this->target) . chr($this->type) . $str;
+    public function produce($bEncode = true) {
+        return chr($this->target) . chr($this->type) . $this->data;
     }
 
     /**
@@ -155,7 +150,9 @@ class Importer {
                 else
                 {
                     $lineData[$row->route_short_name] = $ldi;
-                    $lineNames[$ldi] = $row->route_short_name . "\0" . $row->trip_long_name . "\0" . $row->trip_headsign . "\0";
+                    $lineNames[$ldi] = app()->encodeForDevice($row->route_short_name) . "\0" 
+                        . app()->encodeForDevice($row->trip_long_name) . "\0" 
+                        . app()->encodeForDevice($row->trip_headsign) . "\0";
                     $row->ldi = $ldi;
                     $ldi++;
                 }
@@ -166,27 +163,30 @@ class Importer {
                     . chr((int)$row->wdmask);
             }
             $stc = count($stopTimes);
+            // echo "\n**stopTimes: $stc\n";
+            // echo "\tmsb: " . floor($stc / 256) . "\n";
+            // echo "\tlsb: " . $stc % 256 . "\n";
 
             $pkg = new MQTTPackage(
                 PACKAGE_TARGET_DISPLAY, 
                 PACKAGE_TYPE_TIMETABLE, 
-                chr(count($lineNames))          // 0    count of lines
-                . chr(floor($stc / 256))        // 1    count of times MSB
-                . chr($stc % 256)               // 2    count of times LSB
-                . chr(8)                        // 3    TZ (hours * 4)  TODO
-                . chr(1)                        // 4    DST             TODO
-                . $stopName . "\0"              // 5    stop name
-                . implode($lineNames, "")       //      line names
-                . implode($stopTimes, "")       //      timetable
+                chr(count($lineNames))                          // 0    count of lines
+                . chr(floor($stc / 256))                        // 1    count of times MSB
+                . chr($stc % 256)                               // 2    count of times LSB
+                . chr(8)                                        // 3    TZ (hours * 4)  TODO
+                . chr(1)                                        // 4    DST             TODO
+                . app()->encodeForDevice($stopName) . "\0"      // 5    stop name
+                . implode($lineNames, "")                       //      line names
+                . implode($stopTimes, "")                       //      timetable
             );
             $pkg->validate();
 
             //post data to broker
             $mqtt->publish(
                 $mqttTopic . MQTT_STOPDATA_SUBTOPIC, 
-                $pkg->produce(),        //data
-                1,                      //TODO at 2 = exactly once
-                true                    //retain
+                $pkg->produce(false),       //data
+                1,                          //TODO QoS 2 = exactly once?
+                true                        //retain
             );
             echo "published to " . $mqttTopic . MQTT_STOPDATA_SUBTOPIC . "\n";
 
@@ -207,9 +207,9 @@ class Importer {
             //post data to broker
             $mqtt->publish(
                 $mqttTopic . MQTT_SENSORSLIST_SUBTOPIC, 
-                $pkg->produce(),    //data
-                1,                  //QOS at 2 = exactly once
-                true                //retain
+                $pkg->produce(false),       //data
+                1,                          //QOS at 2 = exactly once
+                true                        //retain
             );
             echo "published to " . $mqttTopic . MQTT_SENSORSLIST_SUBTOPIC . "\n";
 

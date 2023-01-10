@@ -102,6 +102,3 @@ $stEnabled = app()->db()->prepare(SQL_ENABLED_STOPS);
 $stEnabled->execute();
 while($row = $stEnabled->fetchObject())
     app()->importer()->exportToMQTT($row->stop_id);
-
-
-
