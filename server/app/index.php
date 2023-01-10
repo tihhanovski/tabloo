@@ -56,6 +56,18 @@ class Application {
             $this->_importer = new Importer();
         return $this->_importer;
     }
+
+    /**
+     * Encodes string for device
+     * @param s String to encode
+     * @return Encoded string
+     */
+    public function encodeForDevice($s) {
+        if((MQTT_DATA_ENCODING != SERVER_DATA_ENCODING))
+            return mb_convert_encoding($s, MQTT_DATA_ENCODING, SERVER_DATA_ENCODING);
+         else
+            return $s;
+    }
 }
 
 function app() {
