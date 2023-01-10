@@ -15,8 +15,13 @@
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
 
+// Fonts converted using software from
+// https://www.sigmdel.ca/michel/program/misc/gfxfont_8bit_en.html
+// BitCasual is public domain font by geoff, see
+// http://www.pentacom.jp/pentacom/bitfontmaker2/gallery/?id=353
 #include <BitCasual8pt8b.h>
 GFXfont defaultFont = BitCasual8pt8b;
+
 #define ROWHEIGHT defaultFont.yAdvance
 #define FONT_BASELINE ROWHEIGHT - 4
 
@@ -27,13 +32,6 @@ GFXfont defaultFont = BitCasual8pt8b;
 
 #include "TalTechLogo.h"    // hardcoded Taltech logo
 
-// Fonts converted using software from
-// https://www.sigmdel.ca/michel/program/misc/gfxfont_8bit_en.html
-// #include <DejaVuSansMono4pt8b.h>
-// #include <FSEX3006pt8b.h>
-
-// BitCasual is public domain font by geoff, see
-// http://www.pentacom.jp/pentacom/bitfontmaker2/gallery/?id=353
 
 
 
@@ -80,7 +78,7 @@ void matrix_outputMessage(uint8_t* message, uint32_t messageLength) {
     display->setFont(&defaultFont);
     display->fillRect(x, y, w, h, DISPLAY_COLOR_BLACK);
     display->setTextColor(DISPLAY_COLOR_RED);
-    display->setCursor(x + 2, y + ROWHEIGHT - 2);
+    display->setCursor(x + 2, y + FONT_BASELINE);
 
     convert_inplace_to_cp(message, messageLength);
     display->write(message, messageLength);
