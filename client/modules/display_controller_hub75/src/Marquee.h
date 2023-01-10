@@ -3,8 +3,6 @@
  * Marquee to show long texts on small display
  * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
  * 
- * TODO: comments
- * 
  */
 
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
@@ -17,6 +15,9 @@
 #endif
 
 
+/**
+ * Own marquee will be created for every line
+*/
 class Marquee {
     String  str;
     DISPLAYCLASS *display = nullptr;

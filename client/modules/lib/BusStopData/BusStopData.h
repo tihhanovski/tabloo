@@ -95,6 +95,7 @@ public:
 
         #ifdef DEBUG_TIMETABLES
         log_v("Looking for next time %d\t%d:%d dow=%d, dowMask=%d, --> %d", lineIndex, h, m, dow, dowMask, currentMin);
+        log_v("times count: %d", timesCount);
         #endif
 
         uint16_t ret = 0;                               // Will return it
@@ -106,10 +107,9 @@ public:
             log_v("{t:%d:%d L%d}", (uint8_t)*(p), (uint8_t)*(p+1), (uint8_t)*(p+2));
             #endif
             if((*(p + 2) == lineIndex) && (*(p + 3) & dowMask)) {                 // Check bus line index and day of week mask
-                uint16_t t = (*p) * 60 + (*(p + 1));    // Calculate arrival time in minutes since midnight
+                uint16_t t = ((uint8_t)(*p)) * 60 + (uint8_t)(*(p + 1));    // Calculate arrival time in minutes since midnight
                 #ifdef DEBUG_TIMETABLES
-                    Serial.print(t);
-                    Serial.print("\t");
+                log_v("compare with %d", t);
                 #endif
                 if(!firstTimeSet) {                     // Save first bus time for case if we have no next time
                     ret = t;
@@ -118,7 +118,7 @@ public:
 
                 if(t >= currentMin) {                  // Found first bus arrival since now
                     #ifdef DEBUG_TIMETABLES
-                        Serial.println("OK");
+                        log_v("OK");
                     #endif
                     return t - currentMin;             // Return the difference
                 }
@@ -127,7 +127,7 @@ public:
         }
 
         #ifdef DEBUG_TIMETABLES
-            Serial.println("def:");
+            log_v("def: %d", 24 * 60 - currentMin + ret);
         #endif
         return 24 * 60 - currentMin + ret;             // Use first time as tomorrows first time
     }

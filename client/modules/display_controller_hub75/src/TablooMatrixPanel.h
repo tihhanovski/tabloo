@@ -1,6 +1,15 @@
 #ifndef _TABLOOMATRIXPANEL_H_
 #define _TABLOOMATRIXPANEL_H_
 
+/**
+ * Tabloo - opensource bus stop display
+ * @author Ilja Tihhanovski <ilja.tihhanovski@gmail.com>
+ * 
+ * Matrix panel functions
+ * 
+ */
+
+
 // RGB LED panel library, 
 // see https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
@@ -237,6 +246,7 @@ void waiting_times_show(BusStopData& timetable) {
 
                 cvsTimesToWait->setCursor(TIMES_W - bw + bx, i * ROWHEIGHT + FONT_BASELINE);
                 cvsTimesToWait->print(minutesToWait);
+                log_v("%d : %d min", i, minutesToWait);
             }
         } else {
             cvsTimesToWait->drawRoundRect(0, 0, TIMES_W, TIMES_H, 3, DISPLAY_COLOR_RED);
@@ -255,19 +265,17 @@ void clock_show() {
     unsigned long t = millis();
     if(t >= nextClockTime)
     {
-
-
-        
         int16_t bx, by;
         uint16_t bw, bh;
 
-        display->getTextBounds(String("00"), 0, 0, &bx, &by, &bw, &bh);
+        display->getTextBounds(String("99"), 0, 0, &bx, &by, &bw, &bh);
 
         nextClockTime = t + 500;
         timeColon = !timeColon;
         int x = display->width() - bw * 2 - 3;
-        int y = display->height() - bh;
-        display->fillRect(x, y, bw * 2 + 3, bh, DISPLAY_COLOR_BLACK);
+        int y = display->height() - ROWHEIGHT;
+        display->fillRect(x - 2, y, bw * 2 + 5, ROWHEIGHT, DISPLAY_COLOR_BLACK);
+        display->drawRect(x - 2, y, bw * 2 + 5, ROWHEIGHT, DISPLAY_COLOR_RED);
 
         uint8_t h;
         uint8_t m;
@@ -284,14 +292,14 @@ void clock_show() {
         }
 
         display->setTextColor(display->color444(0,15,0));
-        display->setCursor(x, y);
+        display->setCursor(x, y + FONT_BASELINE);
         display->print(hh);
         if(timeColon)
         {
-            display->setCursor(x + bw - 2, y);
+            display->setCursor(x + bw - 2, y + FONT_BASELINE);
             display->print(":");
         }
-        display->setCursor(x + bw + 2, y);
+        display->setCursor(x + bw + 2, y + FONT_BASELINE);
         display->print(mm);
     }
 }
