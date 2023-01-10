@@ -47,7 +47,7 @@ Marquees scrolls;           // Marquees collection
  * Show the error message on matrix panel as a marquee
  * @param msg error message
  */
-void displayError(const char* msg) {
+void displayError(const uint8_t* msg) {
     log_i("Display error '%s'", msg);
     scrolls.clear();
     display->fillRect(0, 0, display->width(), display->height(), DISPLAY_COLOR_BLACK);
@@ -120,10 +120,10 @@ void matrix_startScrolls(BusStopData &timetable) {
         display->print(l.shortName);
         
         scrolls.add(new Marquee(
-            l.longName, display, 
+            (const uint8_t*)l.longName, display, 
             lnw, 
             i * ROWHEIGHT,  //TODO 
-            display->width() - lnw - 18,     //TODO why 18?
+            display->width() - lnw - 18,     //TODO why 18 (probably waiting time)? Refactor it
             ROWHEIGHT, 
             150, //msecs per pixel
             DISPLAY_COLOR_BLACK
@@ -131,6 +131,9 @@ void matrix_startScrolls(BusStopData &timetable) {
     }
 }
 
+/**
+ * Outputs beautiful splashscreen :)
+*/
 void matrix_splashscreen() {
     log_v("Showing splash screen");
 
@@ -164,6 +167,9 @@ void matrix_splashscreen() {
     delay(500);
 }
 
+/**
+ * Configure display
+*/
 void matrix_init(uint16_t resX, uint16_t resY, uint8_t chain) {
     // Display module configuration
     
