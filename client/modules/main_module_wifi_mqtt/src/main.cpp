@@ -6,11 +6,7 @@
 #define SETUP_BLE_ENABLED true
 #define SETUP_TIMEOUT_PAUSE 60000
 
-//MQTT broker data
-#define MQTT_BROKER "dev.intellisoft.ee"
-#define MQTT_USER "ilja"
-#define MQTT_PASS "inf471c"
-#define MQTT_PORT 8883
+#include "mqtt_setup.h"
 
 // non standard UART pins, standard are 16, 17
 #define UARTIO_DEBUG true
