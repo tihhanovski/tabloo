@@ -53,6 +53,7 @@ public:
     uint8_t lineCount = 0;              // Lines count
     uint8_t tz = 0;                     // Timezone data with 15 minutes precision. tz * 900 = offset in seconds
     uint8_t dst = 0;                    // DST type
+    char* tzName = nullptr;
 
     // TODO is it correct definition of DST?
     // #define	DST_NONE	0	/* not on dst */
@@ -168,6 +169,8 @@ public:
 
         stopName = p;                                   // 5    stop name begins
         log_v("Stop name: '%s'", stopName);
+        p = strchr(p, '\0') + 1;
+        tzName = p;
         p = strchr(p, '\0') + 1;
 
         for(unsigned int i = 0; i < lineCount; i++) {   //      line names

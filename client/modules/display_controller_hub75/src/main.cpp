@@ -49,6 +49,9 @@ const char* CMD_REBOOT = "reboot";
 bool startSuccessfull = false;    // True if start was successfull
 
 #include "TablooMatrixPanel.h"
+            
+#include <ESP32Time.h>
+
 
 uint8_t* data = nullptr;              // Buffer for timetable data
 size_t dataSize = 0;                  // Size of timetable data
@@ -70,6 +73,13 @@ void clearData() {
 */
 void initData() {
     timetable.initialize((char*)data);
+
+    //see for timezone examples: https://gist.github.com/alwynallan/24d96091655391107939
+    if(timetable.tzName != nullptr) {
+        setenv("TZ", timetable.tzName, 1);
+        tzset();
+    }
+
     matrix_startScrolls(timetable);
     outputMemoryData();
 }
@@ -138,6 +148,7 @@ void onMessageReceived (uint8_t type, uint8_t* msg, uint16_t msgLength) {
             }
             log_v("Set current time");
             time_init_by_packet(msg);
+
             matrix_resetCurrentTime();
             break;
         case UART_PACKET_TYPE_TIMETABLE:
