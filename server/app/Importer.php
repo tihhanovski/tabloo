@@ -176,6 +176,7 @@ class Importer {
                 . chr(8)                                        // 3    TZ (hours * 4)  TODO
                 . chr(1)                                        // 4    DST             TODO
                 . app()->encodeForDevice($stopName) . "\0"      // 5    stop name
+                . TIMEZONE . "\0"                               //      Timezone string
                 . implode($lineNames, "")                       //      line names
                 . implode($stopTimes, "")                       //      timetable
             );
