@@ -10,6 +10,10 @@
 // by Rui Santos
 // https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/
 
+
+#ifndef _TABLOOI2C_H_
+#define _TABLOOI2C_H_
+
 // default I2C pins
 #ifndef SDA_PIN
     #define SDA_PIN 21
@@ -243,3 +247,5 @@ void i2c_start() {
 
     i2c_started = true;
 }
+
+#endif

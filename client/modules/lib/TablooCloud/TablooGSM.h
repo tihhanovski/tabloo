@@ -117,44 +117,49 @@ void networking_start() {
         log_v("No need to unlock SIM");
 }
 
-SimpleDateTime networking_request_datetime() {
-    int   year3    = 0;
-    int   month3   = 0;
-    int   day3     = 0;
-    int   hour3    = 0;
-    int   min3     = 0;
-    int   sec3     = 0;
-    float timezone = 0;
+/**
+ * @brief setup RTC
+*/
+void networking_request_datetime() {
+    //TODO implement it without simpledatetime
 
-    SimpleDateTime ret;
-    for (int8_t i = 5; i; i--) {
-        log_v("Requesting current network time");
-        if (modem.getNetworkTime(&year3, &month3, &day3, 
-            &hour3, &min3, &sec3,
-            &timezone)) 
-        {
-            log_v("Time: %d-%d-%d %d:%d:%d %.1f", year3, month3, day3, hour3, min3, sec3, timezone);
+    // int   year3    = 0;
+    // int   month3   = 0;
+    // int   day3     = 0;
+    // int   hour3    = 0;
+    // int   min3     = 0;
+    // int   sec3     = 0;
+    // float timezone = 0;
 
-            if(year3 <= 2004 && month3 == 1 && day3 == 1) {
-                //TODO !!
-                log_e("Wrong datetime");
-            }
+    // SimpleDateTime ret;
+    // for (int8_t i = 5; i; i--) {
+    //     log_v("Requesting current network time");
+    //     if (modem.getNetworkTime(&year3, &month3, &day3, 
+    //         &hour3, &min3, &sec3,
+    //         &timezone)) 
+    //     {
+    //         log_v("Time: %d-%d-%d %d:%d:%d %.1f", year3, month3, day3, hour3, min3, sec3, timezone);
 
-            ret.hours = hour3;
-            ret.minutes = min3;
-            ret.seconds = sec3;
-            ret.year = year3 > 2000 ? year3 - 2000 : year3;
-            ret.month = month3;
-            ret.day = day3;
-            ret.offset = trunc(4 * timezone);   //TODO is it 
-            break;
-        } else {
-            log_w("Couldn't get network time (try %d), retrying in 5s.", i);
-            //SerialMon.print("Couldn't get network time, retrying in 15s.");
-            delay(5000L);
-        }
-    }
-    return ret;
+    //         if(year3 <= 2004 && month3 == 1 && day3 == 1) {
+    //             //TODO !!
+    //             log_e("Wrong datetime");
+    //         }
+
+    //         ret.hours = hour3;
+    //         ret.minutes = min3;
+    //         ret.seconds = sec3;
+    //         ret.year = year3 > 2000 ? year3 - 2000 : year3;
+    //         ret.month = month3;
+    //         ret.day = day3;
+    //         ret.offset = trunc(4 * timezone);   //TODO is it 
+    //         break;
+    //     } else {
+    //         log_w("Couldn't get network time (try %d), retrying in 5s.", i);
+    //         //SerialMon.print("Couldn't get network time, retrying in 15s.");
+    //         delay(5000L);
+    //     }
+    // }
+    // return ret;
 }
 
 boolean networking_connect() {
