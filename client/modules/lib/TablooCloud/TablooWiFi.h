@@ -16,13 +16,13 @@
 #define TIME_NTP_SERVER "pool.ntp.org"
 #endif
 
-#ifndef TIME_TIMEZONE_OFFSET_GMT_SEC
-#define TIME_TIMEZONE_OFFSET_GMT_SEC 7200
-#endif
+// #ifndef TIME_TIMEZONE_OFFSET_GMT_SEC
+// #define TIME_TIMEZONE_OFFSET_GMT_SEC 7200
+// #endif
 
-#ifndef TIME_DST_OFFSET_SEC
-#define TIME_DST_OFFSET_SEC 0
-#endif
+// #ifndef TIME_DST_OFFSET_SEC
+// #define TIME_DST_OFFSET_SEC 0
+// #endif
 
 #include <Arduino.h>
 //#include <ArduinoHttpClient.h>  //see https://github.com/vshymanskyy/TinyGSM/blob/master/examples/HttpsClient/HttpsClient.ino
@@ -86,14 +86,12 @@ void printLocalTime(){
 */
 void networking_request_datetime() {
 
-    //sync time using NTP
-    configTime(TIME_TIMEZONE_OFFSET_GMT_SEC, TIME_DST_OFFSET_SEC, TIME_NTP_SERVER);
-    printLocalTime();
+    // sync time using NTP
+    // Use UTC timezone and no DST
+    configTime(0, 0, TIME_NTP_SERVER);
+    // printLocalTime();    //use it to debug
     log_v("time requested");
     rtc_time_initialized = true;
-    // SimpleDateTime ret;
-    // ret.setupByRTC();
-    // return ret;
 }
 
 boolean networking_is_connected() {

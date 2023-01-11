@@ -220,7 +220,9 @@ void setup_loop()
         {
             log_v("Enter setup mode");
             setupState = true;
+            #if SETUP_BLE_ENABLED
             bleInput.start();
+            #endif
             resetSetupIdleTimer();
         }
     }
@@ -234,7 +236,9 @@ void setup_loop()
             log_v("Timeout. Exit setup mode");
             setupState = false;
             digitalWrite(SETUP_LED_PIN, 0);
+            #if SETUP_BLE_ENABLED
             bleInput.stop();
+            #endif
         }
 
         if (t > setupBlinkTimer)

@@ -13,8 +13,8 @@ Kellaaja andmete pakett koosneb viiest baidist.
 Esimesed neli baiti kodeerivad kellaaega unixi ajaga (sekundite arv alates 01.01.1970 UTC) võrdsena neljabaidise täisarvuna. 
 
 Viies bait sisaldab ajavööndi ja suveaja informatsiooni. Minimaalne kellaajavööndi vahe on 15 minutit. Seega vahet salvestamiseks piisab korrutamiseks tundide arvu neljaga. Maksimaalne timezone offset on väiksem 24 tunnist, mis teeb offset välja maksimaalseks väärtuseks 95. Seda arvu salvestatakse seitsmesse madalamasse bittidesse [46].
-
 Suveaja infot kodeerib viienda baiti kõrgeim bit (0 tähendab DST puudumist, 1 – selle olemasolu). Kuna erinevates kohtades suveaeg algab ja lõpeb erinevatel päevadel, ühest bitist ei piisa ja see tingib selle info eraldi baiti viimist [47].
+(ei ole enam vaja)
 */
 
 #define TIME_PACKET_SIZE 5
@@ -22,18 +22,18 @@ Suveaja infot kodeerib viienda baiti kõrgeim bit (0 tähendab DST puudumist, 1 
 #ifndef _TABLOO_TIME_H_
 #define _TABLOO_TIME_H_
 
-#ifndef TIME_TIMEZONE_OFFSET_GMT_SEC
-#define TIME_TIMEZONE_OFFSET_GMT_SEC 7200
-#endif
+// #ifndef TIME_TIMEZONE_OFFSET_GMT_SEC
+// #define TIME_TIMEZONE_OFFSET_GMT_SEC 7200
+// #endif
 
-#ifndef TIME_DST_OFFSET_SEC
-#define TIME_DST_OFFSET_SEC 0
-#endif
+// #ifndef TIME_DST_OFFSET_SEC
+// #define TIME_DST_OFFSET_SEC 0
+// #endif
 
 #include <Arduino.h>
 #include <ESP32Time.h>
 
-ESP32Time rtc(TIME_TIMEZONE_OFFSET_GMT_SEC);
+ESP32Time rtc(0);   // use UTC //was TIME_TIMEZONE_OFFSET_GMT_SEC
 bool rtc_time_initialized = false;
 
 void getHourAndMinute(uint8_t& h, uint8_t& m) {
@@ -56,8 +56,12 @@ void time_setup_packet(uint8_t packet[TIME_PACKET_SIZE]) {
         now = now >> 8;
     }
 
-    packet[4] = (TIME_TIMEZONE_OFFSET_GMT_SEC / 900)    // timezone offst 0 .. 96
-        | (TIME_DST_OFFSET_SEC ? 128 : 0);
+    packet[4] = 0;
+    // All modules excluding display module, lives on UTC
+    // packet[4] = (0 / 900)    // timezone offst 0 .. 96
+    //      | (0 ? 128 : 0);
+    // packet[4] = (TIME_TIMEZONE_OFFSET_GMT_SEC / 900)    // timezone offst 0 .. 96
+    //     | (TIME_DST_OFFSET_SEC ? 128 : 0);
 
     log_v("time packet %02x %02x %02x %02x %02x", packet[0], packet[1], packet[2], packet[3], packet[4], packet[5]);
 
@@ -72,6 +76,7 @@ void time_init_by_packet(uint8_t packet[TIME_PACKET_SIZE]) {
     for(int8_t i = 0; i < 4; i++)
         epoch = (epoch << 8) | packet[i];
 
+    // TODO remove it, but check display module
     struct timezone tz;
     tz.tz_minuteswest = 900 * (int)(packet[4] & 127);
     tz.tz_dsttime = DST_EET;
@@ -111,114 +116,10 @@ void time_init_by_packet(uint8_t packet[TIME_PACKET_SIZE]) {
     
 }
 
-// struct SimpleDateTime {
-//     uint8_t year = 0;
-//     uint8_t month = 0;
-//     uint8_t day = 0;
-//     uint8_t hours = 0;
-//     uint8_t minutes = 0;
-//     uint8_t seconds = 0;
-//     uint8_t offset = 0;
-
-// public:
-
-//     void clear() {
-//         year = 0;
-//         month = 0;
-//         day = 0;
-//         hours = 0;
-//         minutes = 0;
-//         seconds = 0;
-//         offset = 0;
-//     }
-
-//     bool isValid() {
-//         return year > 4;
-//     }
-
-//     void setupByRTC() {
-//         struct tm timeinfo;
-//         if(!getLocalTime(&timeinfo)){
-//             log_e("Failed to obtain time");
-//             clear();
-//             return;
-//         }
-
-//         year = rtc.getYear() - 2000;
-//         month = 1 + rtc.getMonth();
-//         day = rtc.getDay();
-//         hours = rtc.getHour(true);
-//         minutes = rtc.getMinute();
-//         seconds = rtc.getSecond();
-//         offset = rtc.offset / 900;
-
-//         log_v("time set: %d-%d-%d %02d:%02d:%02dZ%d", year, month, day, hours, minutes, seconds, offset);
-//     }
-// };
-
-// struct SimpleTime {
-//     uint8_t hours = 0;
-//     uint8_t minutes = 0;
-//     uint8_t seconds = 0;
-// };
-
-// String format(SimpleTime t) {
-//     return (String)("") + t.hours + ":" + t.minutes + ":" + t.seconds;
-// }
-
-// String format(SimpleDateTime t) {
-//     return (String)("") + t.hours + ":" + t.minutes + ":" + t.seconds;
-// }
-
 
 bool time_is_initialized() {
     return rtc_time_initialized;
 }
-
-
-// TODO: Bad code, read about timezones and write better
-// void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second) {
-
-//     log_v("setDateTime %d-%d-%d %d:%d:%d+%d", year, month, day, hour, minute, second, rtc.offset);
-//     if(year <= 4) {
-//         log_e("Invalid time detected. Skip RTC initialization");
-//         return;
-//     }
-
-//     rtc.setTime(second, minute, hour, day, month, 2000 + year);
-
-//     //weird offset hack:
-
-//     uint8_t h, m;
-//     getHourAndMinute(h, m);
-//     log_v("Time after setup: %d.%d <-- %d", h, m, rtc.getLocalEpoch());
-
-//     unsigned long le = rtc.getLocalEpoch();
-//     le = le - rtc.offset;
-//     rtc.setTime(le);
-
-//     getHourAndMinute(h, m);
-//     log_v("Time after hack: %d.%d <-- %d", h, m, rtc.getLocalEpoch());
-
-//     rtc_time_initialized = true;
-// }
-
-// void setDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second, uint8_t offset) {
-//     rtc.offset = 900 * offset;
-//     log_v("Setting rtc offset to 900 * %d = %d ", offset, rtc.offset);
-//     setDateTime(year, month, day, hour, minute, second);
-// }
-
-// void getDateTime(uint8_t& year, uint8_t& month, uint8_t& day, uint8_t& hour, uint8_t& minute, uint8_t& second, uint8_t& offset) {
-//     year = rtc.getYear() - 2000;
-//     month = 1 + rtc.getMonth();
-//     day = rtc.getDay();
-//     hour = rtc.getHour(true);
-//     minute = rtc.getMinute();
-//     second = rtc.getSecond();
-//     offset = rtc.offset / 900;
-// }
-
 
 /**
  * @brief Returns current day of week (0=sunday, 6=saturday)

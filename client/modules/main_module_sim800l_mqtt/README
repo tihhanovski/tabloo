@@ -1,0 +1,4 @@
+This is a code for the main module prototype with mobile connectivity
+
+Use Platformio to compile it
+Before compiling, rename src/mqtt_setup_dist.h to src/mqtt_setup.h to setup hardcoded MQTT broker data
