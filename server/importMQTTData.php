@@ -8,6 +8,43 @@ require_once $libDir .  '/app/index.php';
 
 use function \Tabloo\app\app as app;
 
+$_listeners = [];
+function addRawDataListener($target, $listener) {
+    global $_listeners;
+    $_listeners[] = [
+        "target" => $target,
+        "listener" => $listener
+    ];
+}
+function notifyListeners($target, $data) {
+    global $_listeners;
+    foreach($_listeners as $l)
+        if($l["target"] === $target)
+            ($l["listener"])($data);
+}
+
+// register listeners
+$pluginsDir = $libDir . "/plugins";
+$plugins = scandir($pluginsDir);
+
+foreach($plugins as $pluginDir) 
+    if(substr($pluginDir, 0, 1) !== ".") {
+        $listenerDir = $pluginsDir . "/" . $pluginDir . "/listeners";
+        if(file_exists($listenerDir) && is_dir($listenerDir)) {
+            echo "$listenerDir\n";
+            $listeners = scandir($listenerDir);
+            foreach($listeners as $listenerFN)
+                if(substr($listenerFN, 0, 1) !== "." && substr($listenerFN, -4) === '.php')
+                    include_once($listenerDir . "/" . $listenerFN);
+                    // echo $listenerFN . "\n";
+
+        }
+    }
+
+// app()->notifyImportListeners(4, "test!");
+
+
+
 // connect to MQTT broker
 // for address, username and password see setup.php
 $mqtt = app()->mqtt(MQTT_CLIENTID . "-importer");
@@ -70,15 +107,13 @@ function processTargetData($topic, $msg){
         );
         global $stSave;
         $stSave->execute($params);
+        $rawId = app()->db()->lastInsertId();
+        app()->notifyImportListeners($addr, $stop_code, $body, $rawId);
 
         echo "\t$stop_code/$addr ($length) -> '$body'\n";
         // proceed with next message
         $msg = substr($msg, 8 + $length);
     }
-
-
-
-
 
 
 }

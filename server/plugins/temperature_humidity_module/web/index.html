@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <title>Temp/humidity</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <script language="JavaScript">
+
+        const stop_code = '7820162-1';
+
+        async function get(url) {
+            try {
+                const response = await fetch('?q=' + url + '&stop_code=' + stop_code);
+                const data = await response.json();
+                return data; 
+            } catch (e) {
+                console.warn(e);
+                throw e;
+            }
+        }
+
+        function generate(html) {
+            const template = document.createElement('template');
+            template.innerHTML = html.trim();
+            return template.content.children;
+        }
+        
+        function ready(fn) {
+            if (document.readyState !== 'loading') {
+                fn();
+            } else {
+                document.addEventListener('DOMContentLoaded', fn);
+            }
+        }
+
+        function draw(d, width, height, style) {
+
+            const w = width - 50;
+            const h = height - 50;
+            const t = 10;
+            const l = 40;
+
+
+
+            ret = '<svg height="' + height + '" width="' + width + '">';
+            ret += '<rect x="0" y="0" width="' + (width) + '" height="' + (height) + '" style="fill:rgb(255,255,255);stroke-width:1;stroke:rgb(0,0,0)" />'
+
+            const coef = w / d.length;
+            let p = '';
+            let max = -1e9; 
+            let min = 1e9;
+            for(x = 0; x < d.length; x++) {
+                let v = Number.parseFloat(d[x].value);
+                if(v > max) max = v;
+                if(v < min) min = v;
+            }
+            if((max - min) !== 0)
+                ycoef = h / (max - min);
+            else
+                ycoef = 1;
+
+            // console.log(ycoef, min, max)
+
+            for(x = 0; x < d.length; x++) {
+                let v = d[x].value;
+                p += (l + w - x * coef) + ',' + (t + (max - v) * ycoef) + ' ';
+            }
+
+            const ysc = (max - min) / 10;
+            for(x = 0; x < 11; x++) {
+                const y1 = (t + h - (x * ysc) * ycoef)
+                ret += '<text x="10" y="' + (y1 + 5) + '" fill="black" font-family="Arial, Helvetica, sans-serif" font-size="10">' + (x * ysc + min).toFixed(2) + '</text>';
+                ret += '<line x1="' + l + '" y1="' + y1 + '" x2="' + (l + w) + '" y2="' + y1 + '" style="stroke:rgb(200,200,200);stroke-width:1" />';
+            }
+
+            const xsc = d.length / 10;
+            for(x = 0; x < 11; x++) {
+                const x1 = (l + x * xsc * coef);
+                ret += '<line x1="' + x1 + '" y1="' + t + '" x2="' + x1 + '" y2="' + (t + h) + '" style="stroke:rgb(200,200,200);stroke-width:1" />';
+                ret += '<text x="' + (x1) + '" y="' + (t + h + 15) + '"'
+                    + ' fill="black" font-family="Arial, Helvetica, sans-serif" font-size="10"'
+                    // ' transform="rotate(30 ' + x1 - 5 + ',' + (t + h + 15) + ')"'
+                    + '>' + ((10 - x) * xsc) + '</text>';
+            }
+
+            ret += '<rect x="' + l + '" y="' + t + '" width="' + w + '" height="' + h + '" style="fill:rgb(255,255,255,0);stroke-width:1;stroke:rgb(0,0,0)" />'
+            ret += '<polyline points="' + p + '" style="' + style + '" />';
+
+
+            ret += '</svg>'
+
+            return ret;
+        }
+
+        async function loadGraphs() {
+            const temp = await get('temp');
+            document.querySelector('#temp').innerHTML = draw(temp, 500, 200, 'fill:none;stroke:green;stroke-width:3');
+            const hum = await get('hum');
+            document.querySelector('#hum').innerHTML = draw(hum, 500, 200, 'fill:none;stroke:red;stroke-width:3');
+        }
+
+        async function onReady() {
+            document.querySelector('#stop_code').innerHTML = stop_code;
+
+            setInterval(loadGraphs, 5000);
+        }
+
+        ready(onReady);
+
+    </script>
+</head>
+<body>
+    <h1 id="stop_code">Stop code</h1>
+    <h2>Temperature</h2>
+    <div id="temp"></div>
+    <h2>Humidity</h2>
+    <div id="hum"></div>
+</body>
+</html>

@@ -68,6 +68,38 @@ class Application {
          else
             return $s;
     }
+
+    private $_importListeners = [];
+
+    /**
+     * Register import listener
+     * @param target Module address
+     * @param listener Listener function
+     */
+    function addImportListener($target, $listener) {
+        $this->_importListeners[] = [
+            "target" => $target,
+            "listener" => $listener
+        ];
+    }
+
+    /**
+     * Call listeners for given target
+     * @param target Module address
+     * @param stop_code Stop code to which module is attached
+     * @param data raw data from module
+     * @param raw_id record id from raw data database table in case plugin needs more metadata
+     */
+    function notifyImportListeners($target, $stop_code, $data, $raw_id) {
+        foreach($this->_importListeners as $l)
+            if($l["target"] === $target)
+                try {
+                    ($l["listener"])($stop_code, $data, $raw_id);
+                } catch (Exception $e) {
+                    echo $e->getMessage();
+                }
+    }
+    
 }
 
 function app() {
