@@ -1,3 +1,4 @@
 vendor/
 importer/nohup.out
 web/ask/cache/
+setup.php

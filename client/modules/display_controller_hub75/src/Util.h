@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Esp.h>
 
+// outputs several memory params to log
 void outputMemoryData(){
     log_v("HEAP: %d / %d; minfree: %d; maxalloc: %d", 
         ESP.getFreeHeap(), 

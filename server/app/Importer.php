@@ -1,5 +1,16 @@
 <?php namespace Tabloo\app;
 
+/**
+ * Tabloo - open source bus stop information display
+ * 
+ * Estonian GTFS data importer
+ * Implements singleton pattern
+ * Handles connection to MySQL database and MQTT broker
+ * 
+ * @author ilja.tihhanovski@gmail.com
+ * 
+ */
+
 const STOPDATA_FORMAT_BIN = "bin";
 const STOPDATA_FORMAT_JSON = "json";
 const STOPDATA_FORMAT_TAB = "tab";
@@ -27,22 +38,42 @@ const PACKAGE_TARGET_DISPLAY = 1;
 
 const PACKAGE_MAXDATALENGTH = 1023;
 
+/**
+ * Encapsulates MQTT package to send commands and other data to Tabloo modules
+ */
 class MQTTPackage {
 
     public $target;
     public $type;
     public $data;
 
+    /**
+     * Constructs new package
+     * @param target module address (0 - 255)
+     * @param type package type
+     * @param data string with length up to PACKAGE_MAXDATALENGTH
+     */
     public function __construct($target, $type, $data) {
         $this->target = $target;
         $this->type = $type;
         $this->data = $data;
     }
 
-    public function produce() {
+    /**
+     * return encoded package as string
+     * Package structure:
+     * byte 0: target
+     * byte 1: type
+     * byte 2 - byte N: data in MQTT_DATA_ENCODING encoding
+     */
+    public function produce($bEncode = true) {
         return chr($this->target) . chr($this->type) . $this->data;
     }
 
+    /**
+     * Check package data
+     * @throws Exception if something is wrong
+     */
     public function validate() {
         if($this->target < 0 || $this->target > 127)
             throw new Exception ("Target address $this->target is out of bounds (0 .. 127)");
@@ -53,8 +84,15 @@ class MQTTPackage {
     }
 }
 
+/**
+ * Actually this is GTFS exporter to MQTT
+ * TODO: properly refactor
+ */
 class Importer {
 
+    /**
+     * publish package to MQTT broker
+     */
     public function connectAndPublishPackage($stopCode, $topic, $pkg) {
 
         $pkg->validate();
@@ -73,12 +111,19 @@ class Importer {
             throw new Exception ("Stop $stopCode is not enabled");
     }
 
+    /**
+     * Exports stop data to MQTT
+     * Stop data consists of timetable and modules list are pushed to different topics on the broker
+     * @param stopId stop id (not stop code)
+     * @param format output data format - actually only STOPDATA_FORMAT_BIN is supported
+     * TODO refactor
+     */
     public function exportToMQTT($stopId, $format = STOPDATA_FORMAT_BIN) {
         echo $stopId . "\n";
         $mqtt = app()->mqtt($stopId);
         if ($mqtt->connect(true, NULL, MQTT_USER, MQTT_PASSWORD)) {
 
-            //build data to export
+            //build timetable data to export
             $ldi = 0;
             $lineData = array();
             $lineNames = array();
@@ -105,7 +150,9 @@ class Importer {
                 else
                 {
                     $lineData[$row->route_short_name] = $ldi;
-                    $lineNames[$ldi] = $row->route_short_name . "\0" . $row->trip_long_name . "\0" . $row->trip_headsign . "\0";
+                    $lineNames[$ldi] = app()->encodeForDevice($row->route_short_name) . "\0" 
+                        . app()->encodeForDevice($row->trip_long_name) . "\0" 
+                        . app()->encodeForDevice($row->trip_headsign) . "\0";
                     $row->ldi = $ldi;
                     $ldi++;
                 }
@@ -116,27 +163,31 @@ class Importer {
                     . chr((int)$row->wdmask);
             }
             $stc = count($stopTimes);
+            // echo "\n**stopTimes: $stc\n";
+            // echo "\tmsb: " . floor($stc / 256) . "\n";
+            // echo "\tlsb: " . $stc % 256 . "\n";
 
             $pkg = new MQTTPackage(
                 PACKAGE_TARGET_DISPLAY, 
                 PACKAGE_TYPE_TIMETABLE, 
-                chr(count($lineNames))          // 0    count of lines
-                . chr(floor($stc / 256))        // 1    count of times MSB
-                . chr($stc % 256)               // 2    count of times LSB
-                . chr(8)                        // 3    TZ (hours * 4)  TODO
-                . chr(1)                        // 4    DST             TODO
-                . $stopName . "\0"              // 5    stop name
-                . implode($lineNames, "")       //      line names
-                . implode($stopTimes, "")       //      timetable
+                chr(count($lineNames))                          // 0    count of lines
+                . chr(floor($stc / 256))                        // 1    count of times MSB
+                . chr($stc % 256)                               // 2    count of times LSB
+                . chr(8)                                        // 3    TZ (hours * 4)  TODO
+                . chr(1)                                        // 4    DST             TODO
+                . app()->encodeForDevice($stopName) . "\0"      // 5    stop name
+                . TIMEZONE . "\0"                               //      Timezone string
+                . implode($lineNames, "")                       //      line names
+                . implode($stopTimes, "")                       //      timetable
             );
             $pkg->validate();
 
             //post data to broker
             $mqtt->publish(
                 $mqttTopic . MQTT_STOPDATA_SUBTOPIC, 
-                $pkg->produce(),        //data
-                1,                      //QOS at 2 = exactly once
-                true                    //retain
+                $pkg->produce(false),       //data
+                1,                          //TODO QoS 2 = exactly once?
+                true                        //retain
             );
             echo "published to " . $mqttTopic . MQTT_STOPDATA_SUBTOPIC . "\n";
 
@@ -157,9 +208,9 @@ class Importer {
             //post data to broker
             $mqtt->publish(
                 $mqttTopic . MQTT_SENSORSLIST_SUBTOPIC, 
-                $pkg->produce(),    //data
-                1,                  //QOS at 2 = exactly once
-                true                //retain
+                $pkg->produce(false),       //data
+                1,                          //QOS at 2 = exactly once
+                true                        //retain
             );
             echo "published to " . $mqttTopic . MQTT_SENSORSLIST_SUBTOPIC . "\n";
 

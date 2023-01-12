@@ -7,6 +7,10 @@ class DBImporter extends Importer
 {
     public $db;    //mysql connection
 
+    function q($s) {
+        return "'" . $this->db->real_escape_string($s) . "'";
+    }
+
     public function output($sql) {
         $this->db->query($sql);
     }
@@ -98,6 +102,3 @@ $stEnabled = app()->db()->prepare(SQL_ENABLED_STOPS);
 $stEnabled->execute();
 while($row = $stEnabled->fetchObject())
     app()->importer()->exportToMQTT($row->stop_id);
-
-
-

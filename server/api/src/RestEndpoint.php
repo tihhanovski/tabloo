@@ -1,10 +1,13 @@
 <?php
 
-use Kreait\Firebase;
-use Firebase\Auth\Token\Exception\InvalidToken;
-use Kreait\Firebase\Factory;
-
+/**
+ * Rest endpoint base class
+ */
 class RestEndpoint {
+
+    /**
+     * @deprecated
+     */
     function process(string $path) {
         return ([
             "status" => "ok",
@@ -14,14 +17,26 @@ class RestEndpoint {
     }
 }
 
+/**
+ * Endpoint that needs authentication
+ */
 class AuthenticatedRestEndpoint extends RestEndpoint {
 
+    // Authenticated user data
     protected /*User*/ $user;
 
+    /**
+     * Constructor
+     * authenticate during creating instance
+     */
     function __construct() {
         $this->authenticate();
     }
     
+    /**
+     * Extracts auth header from data provided by web server (apache, nginx(?))
+     * Tested on apache on typical LAMP install
+     */
     function getAuthorizationHeader(): ?string {
         //see https://stackoverflow.com/questions/40582161/how-to-properly-use-bearer-tokens
         $headers = null;
@@ -55,9 +70,15 @@ class AuthenticatedRestEndpoint extends RestEndpoint {
         throw new UnauthorizedException("Authentication data is not provided");
     }
 
+    /**
+     * Override in descendants
+     */
     function authenticate() {
     }
 
+    /**
+     * @deprecated
+     */
     function process(string $path) {
         $this->authenticate();
         return parent::process($path);
@@ -65,60 +86,29 @@ class AuthenticatedRestEndpoint extends RestEndpoint {
 
 }
 
-class SimpleAuthenticatedRestEndpoint extends AuthenticatedRestEndpoint {
-    function __construct() {
-        $this->authenticate();
-    }
-    
-    protected /*User*/ $user;
-
-    function authenticate() {
-
-    }
-}
-
+/**
+ * Module owner endpoint
+ * Authenticated using module owner's api key
+ */
 class ModuleOwnerAuthenticatedRestEndpoint extends AuthenticatedRestEndpoint {
-    function __construct() {
-        $this->authenticate();
-    }
-    
-    protected /*User*/ $user;
 
+    /**
+     * Authenticate user using API key stored in database (moduleowners.apikey)
+     */
     function authenticate() {
+        // Get auth token
         $token = $this->getBearerToken();
-        // app()->debug("auth $token");
 
+        if(!$token)
+            throw new ForbiddenException("No token provided");
+
+        // Find id and name for active user with given key
         $sel = app()->db()->prepare("select id, name from moduleowners where apikey = :token and active = 1");
         $sel->execute([":token" => $token]);
         $this->user = $sel->fetch(PDO::FETCH_OBJ);
         if(!$this->user)
             throw new ForbiddenException("Unauthenticated");
-        // app()->debug($this->user);
+
         return $this->user;
     }
 }
-
-/*
-class FirebaseAuthenticatedRestEndpoint extends AuthenticatedRestEndpoint {
-
-    function authenticate() {
-        $idTokenString = $this->getBearerToken();
-        if(!$idTokenString)
-            throw new UnauthorizedException("Authentication data is not provided");
-        try {
-            // TODO use cache to speed things up here
-            $factory = (new Factory)->withServiceAccount(FIREBASE_KEY);
-            $auth = $factory->createAuth();            
-            $verifiedIdToken = $auth->verifyIdToken($idTokenString);
-
-            $uid = $verifiedIdToken->claims()->get('sub');
-            $user = $auth->getUser($uid);
-            $this->user = new User($uid, $user->email);
-
-        } catch (Kreait\Firebase\Exception\Auth\FailedToVerifyToken $e) {
-            throw new ForbiddenException($e->getMessage());
-        }
-    }
-
-}
-*/
