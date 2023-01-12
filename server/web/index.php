@@ -2,32 +2,71 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Tabloo</title>
+    <title>Tabloo.</title>
     <script src="/inc/jquery-3.5.1.min.js"></script>
     <style>
         .indent{padding-left: 30px;}
     </style>
 </head>
 <body>
-    <div id="authorities">
-    </div>
+    <h2>All stops</h2>
+    <div id="authorities"></div>
+    <h2>Enabled stops</h2>
+    <div id="enabledStops"></div>
     <script language="JavaScript">
 
         const apiUrl = '/tablooapi/';
 
+        async function get(url) {
+            try {
+                const response = await fetch(apiUrl + url);
+                const data = await response.json();
+                return data; 
+            } catch (e) {
+                console.warn(e);
+                throw e;
+            }
+        }
+
+        function generate(html) {
+            const template = document.createElement('template');
+            template.innerHTML = html.trim();
+            return template.content.children;
+        }
 
         var _app = {
-            "loadAuthorities": function()
+            "loadEnabledStops": async function() {
+                try {
+                    console.log("loadEnabledStops");
+                    const es = document.querySelector('#enabledStops');
+                    const data = await get('enabledstops');
+                    if(data.data)
+                        data.data.forEach(item => {
+                            const d = document.createElement('div');
+                            d.innerHTML = item.stop_code + ': <b>' + item.stop_name + ' ' + item.stop_desc + '</b> (' + item.stop_area + ')'
+                                + (item.last_active !== null ? '<br/>Last active: ' + item.last_active + ' (UTC)' : '')
+                                + (item.modules !== null ? '<br/>Sensors: ' + item.modules : '')
+                                + '<hr/>';
+                            es.append(d);
+                        });
+                } catch (e) {
+                    es.append('Error loading: ' + e.message);
+                }
+            },
+
+            "loadAuthorities": async function()
             {
                 var auth = $("#authorities");
-
-                // const url = "fpdata.php?m=authority"
-                const url = apiUrl + 'authorities';
-
-                $.get(url, function(data){
-                    data.data.forEach(i => auth.append('<div><a href="Javascript:app().loadAreas(\'' + q(i) + '\');">' + i + '</a>' +
+                try {
+                    const data = await get('authorities');
+                    // console.log(data);
+                    if(data.data)
+                        data.data.forEach(i => auth.append('<div><a href="Javascript:app().loadAreas(\'' + q(i) + '\');">' + i + '</a>' +
                             '<div id="areas_' + q(i).replace(/ /g, '_') + '" class="indent"></div></div>'))
-                }, "json");
+
+                } catch(e) {
+                    auth.append('Error ' + e.message);
+                }
             },
 
             "loadAreas": function(id)
@@ -82,6 +121,7 @@
 
         $(function(){
             app().loadAuthorities();
+            app().loadEnabledStops();
         });
 
     </script>

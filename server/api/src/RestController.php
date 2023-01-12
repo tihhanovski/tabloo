@@ -24,6 +24,7 @@ class RestController {
             "authorities" => "AuthoritiesEndpoint",
             "areas" => "AreasEndpoint",
             "stops" => "StopsEndpoint",
+            "enabledstops" => "EnabledStopsEndpoint",
             "moduletypes" => "MyModuletypesEndpoint",
             "modulemessage" => "MyModuleMessageEndpoint",
             "modules" => "MyModulesEndpoint",
