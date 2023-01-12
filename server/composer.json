@@ -1,0 +1,6 @@
+{
+    "require": {
+        "bluerhinos/phpmqtt": "@dev",
+        "kreait/firebase-php": "^6.9"
+    }
+}

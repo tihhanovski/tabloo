@@ -1,0 +1,11 @@
+# Turn rewrite engine on
+Options +FollowSymlinks
+RewriteEngine on
+
+# map neat URL to internal URL
+
+#RewriteCond %{REQUEST_URI} !^/index\.php
+#RewriteCond %{REQUEST_URI} !^/help\.php
+#RewriteCond %{REQUEST_URI} !^/logo64\.png
+
+RewriteRule "^(.*)$"   index.php?path=$1 [nc,qsa]

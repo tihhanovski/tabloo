@@ -1,0 +1,45 @@
+See https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-I2S-DMA/blob/master/examples/PIO_TestPatterns/src/main.cpp
+
+// HUB75E pinout
+// R1 | G1
+// B1 | GND
+// R2 | G2
+// B2 | E
+//  A | B
+//  C | D
+// CLK| LAT
+// OE | GND
+
+/*  Default library pin configuration for the reference
+  you can redefine only ones you need later on object creation
+#define R1 25
+#define G1 26
+#define BL1 27
+#define R2 14
+#define G2 12
+#define BL2 13
+#define CH_A 23
+#define CH_B 19
+#define CH_C 5
+#define CH_D 17
+#define CH_E -1 // assign to any available pin if using panels with 1/32 scan
+#define CLK 16
+#define LAT 4
+#define OE 15
+*/
+
+
+// HUB75E pinout
+
+//  1. R1 -> 25 		| 16. G1 -> 26
+//  2. B1 -> 27 		| 15. ----> GND
+//  3. R2 -> 14 		| 14. G2 -> 12
+//  4. B2 -> 13 		| 13. E  -> <NOT CONNECTED>
+//  5. A  -> 23 		| 12. B  -> 19
+//  6. C  ->  5 		| 11. D  -> 17 / TX2
+//  7. CLK-> 16 / RX2 	| 10. LAT-> 4
+//  8. OE -> 15 		|  9. ----> GND
+
+
+
+https://www.sparkfun.com/news/2650
