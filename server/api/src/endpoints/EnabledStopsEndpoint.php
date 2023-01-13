@@ -14,7 +14,8 @@
  */
 
 
-const ENABLED_STOPS_ENDPOINT = "select e.stop_id, s.stop_code, s.stop_name, s.stop_desc, s.stop_area, a.last_active, m.modules
+const ENABLED_STOPS_ENDPOINT = "select e.stop_id, s.stop_code, s.stop_name, s.stop_desc, s.stop_area, 
+    unix_timestamp(now()) - unix_timestamp(a.last_active) as since_active, m.modules
     from stops_enabled e
     inner join stops s on e.stop_id = s.stop_id
     left join (

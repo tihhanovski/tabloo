@@ -101,7 +101,9 @@
         }
 
         async function onReady() {
+            console.log(document.location.hash.substring(1));
             document.querySelector('#stop_code').innerHTML = stop_code;
+            loadGraphs();
 
             setInterval(loadGraphs, 5000);
         }

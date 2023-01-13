@@ -44,7 +44,7 @@
                         data.data.forEach(item => {
                             const d = document.createElement('div');
                             d.innerHTML = item.stop_code + ': <b>' + item.stop_name + ' ' + item.stop_desc + '</b> (' + item.stop_area + ')'
-                                + (item.last_active !== null ? '<br/>Last active: ' + item.last_active + ' (UTC)' : '')
+                                + (item.last_active !== null ? '<br/>Seconds since last active: ' + item.since_active : '')
                                 + (item.modules !== null ? '<br/>Sensors: ' + item.modules : '')
                                 + '<hr/>';
                             es.append(d);
